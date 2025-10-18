@@ -25,4 +25,13 @@ enum ThemeColor {
             return UIFont(name: "Helvetica Neue", size: 19.0)!
         }
     }
+    
+}
+
+extension UIImage {
+    func resize(to size: CGSize) -> UIImage {
+        return UIGraphicsImageRenderer(size: size).image {_ in
+            draw(in: CGRect(origin: .zero, size: size))
+        }
+    }
 }
