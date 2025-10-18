@@ -24,3 +24,6 @@ Carthage/Build/
 
 # Ignore any personal keys, secrets, etc
 *.key
+
+GoogleService-Info.plist
+
