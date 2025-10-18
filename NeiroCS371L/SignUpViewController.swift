@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import FirebaseAuth
 
 class SignUpViewController: UIViewController {
     
@@ -22,6 +23,21 @@ class SignUpViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        Auth.auth().addStateDidChangeListener() { (auth, user) in
+
+            if user != nil {
+                
+                //TODO: need to add segue/modal transition to another screen wheen added
+                
+                
+                self.usernameField.text = ""
+                self.passwordField.text = ""
+                self.verifyPasswordField.text = ""
+            }
+        }
+        
+        
         view.backgroundColor = ThemeColor.Color.backgroundColor
         setupScreen()
     }
@@ -76,6 +92,7 @@ class SignUpViewController: UIViewController {
         signUpButton.backgroundColor = ThemeColor.Color.titleOutline
         signUpButton.setTitleColor(.white, for: .normal)
         signUpButton.layer.cornerRadius = 16
+        signUpButton.addTarget(self, action: #selector(handleSignUp), for: .touchUpInside)
         view.addSubview(signUpButton)
         
         //New to Neiro? label
@@ -90,6 +107,7 @@ class SignUpViewController: UIViewController {
         switchLoginButton.backgroundColor = ThemeColor.Color.titleOutline
         switchLoginButton.setTitleColor(.white, for: .normal)
         switchLoginButton.layer.cornerRadius = 16
+        switchLoginButton.addTarget(self, action: #selector(handleLogin), for: .touchUpInside)
         view.addSubview(switchLoginButton)
     }
     
@@ -169,6 +187,32 @@ class SignUpViewController: UIViewController {
         
         switchLoginButton.frame = CGRect(x: (width - buttonWidth) / 2, y: loginY, width: buttonWidth, height: buttonHeight)
         
+    }
+    
+    @objc private func handleLogin() {
+        let loginVC = LoginViewController()
+        loginVC.modalPresentationStyle = .fullScreen
+        present(loginVC, animated: true)
+    }
+    
+    @objc private func handleSignUp() {
+        guard let username = usernameField.text, !username.isEmpty,
+              let password = passwordField.text, !password.isEmpty,
+              let verifyPassword = verifyPasswordField.text, !verifyPassword.isEmpty else {
+            print("Not all inputs are complete.")
+            return
+        }
+        
+        guard password == verifyPassword else {
+            print("Passwords do not match.")
+            return
+        }
+        Auth.auth().createUser(withEmail: username, password: password) { (authRest, error) in
+            if let error = error as NSError? {
+                print("\(error.localizedDescription)")
+                return
+            }
+        }
     }
 
 }
