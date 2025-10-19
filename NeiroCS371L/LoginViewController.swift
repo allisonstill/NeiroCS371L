@@ -8,7 +8,7 @@
 import UIKit
 import FirebaseAuth
 
-class LoginViewController: UIViewController {
+class LoginViewController: UIViewController, UITextFieldDelegate {
 
     private let titleLabel = UILabel()
     private let titleBackdrop = UIView()
@@ -21,6 +21,8 @@ class LoginViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        usernameField.delegate = self
+        passwordField.delegate = self
         
         Auth.auth().addStateDidChangeListener() { (auth, user) in
     
@@ -38,6 +40,19 @@ class LoginViewController: UIViewController {
         view.backgroundColor = ThemeColor.Color.backgroundColor
         setupScreen()
     }
+    
+    // Called when 'return' key pressed
+    func textFieldShouldReturn(_ textField:UITextField) -> Bool {
+        textField.resignFirstResponder()
+        return true
+    }
+        
+    // Called when the user clicks on the view outside of the UITextField
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        self.view.endEditing(true)
+    }
+    
     
     private func setupScreen() {
         
