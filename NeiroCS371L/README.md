@@ -1,18 +1,18 @@
 ## Contributions:
 
-**Allison Still (__%):**
+#### Allison Still (_%):
 - 
 - 
 
-**Jacob Mathew (__%):**
+#### Jacob Mathew (_%):
 - 
 - 
 
-**Andy Osornio (__%):**
+#### Andy Osornio (_%):
 - 
 - 
 
-**Ethan Yu (__%):**
+#### Ethan Yu (_%):
 - 
 - 
 
