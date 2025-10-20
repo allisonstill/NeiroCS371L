@@ -1,10 +1,3 @@
-//
-//  LoginViewController.swift
-//  NeiroCS371L
-//
-//  Created by Allison Still on 10/16/25.
-//
-
 import UIKit
 import FirebaseAuth
 
@@ -12,69 +5,47 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
 
     private let titleLabel = UILabel()
     private let titleBackdrop = UIView()
-    private let usernameField = UITextField()
+    private let emailField = UITextField()
     private let passwordField = UITextField()
     private let loginButton = UIButton(type: .system)
     private let newUserLabel = UILabel()
     private let switchSignUpButton = UIButton(type: .system)
     
-    
     override func viewDidLoad() {
         super.viewDidLoad()
-        usernameField.delegate = self
+        emailField.delegate = self
         passwordField.delegate = self
-        
-        Auth.auth().addStateDidChangeListener() { (auth, user) in
-    
-            if user != nil {
-                
-                //TODO: need to add segue/modal transition to another screen wheen added
-                
-                
-                self.usernameField.text = ""
-                self.passwordField.text = ""
-            }
-        }
-        
-        
+
         view.backgroundColor = ThemeColor.Color.backgroundColor
         setupScreen()
+        
+        // Hide password
+        passwordField.isSecureTextEntry = true
     }
     
-    // Called when 'return' key pressed
     func textFieldShouldReturn(_ textField:UITextField) -> Bool {
         textField.resignFirstResponder()
         return true
     }
-        
-    // Called when the user clicks on the view outside of the UITextField
-
+    
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         self.view.endEditing(true)
     }
     
-    
     private func setupScreen() {
-        
-        //title backdrop
         titleBackdrop.backgroundColor = ThemeColor.Color.titleOutline.withAlphaComponent(0.2)
         titleBackdrop.layer.cornerRadius = 24
         view.addSubview(titleBackdrop)
         
-        //title label: Login
         titleLabel.text = "Login"
         titleLabel.font = ThemeColor.Font.titleFont()
         titleLabel.textColor = ThemeColor.Color.titleColor
         titleLabel.textAlignment = .center
         view.addSubview(titleLabel)
         
-       
-        //creating textfields
-        createTextField(usernameField, placeholder: "username")
+        createTextField(emailField, placeholder: "email")
         createTextField(passwordField, placeholder: "password")
         
-        
-        // login button
         loginButton.setTitle("Login", for: .normal)
         loginButton.backgroundColor = ThemeColor.Color.titleOutline
         loginButton.setTitleColor(.white, for: .normal)
@@ -82,14 +53,12 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
         loginButton.addTarget(self, action: #selector(handleLogin), for: .touchUpInside)
         view.addSubview(loginButton)
         
-        //New to Neiro? label
         newUserLabel.text = "New to Neiro?"
         newUserLabel.font = ThemeColor.Font.bodyAuthFont()
         newUserLabel.textColor = ThemeColor.Color.textColor
         newUserLabel.textAlignment = .center
         view.addSubview(newUserLabel)
         
-        //sign up button
         switchSignUpButton.setTitle("Sign Up", for: .normal)
         switchSignUpButton.backgroundColor = ThemeColor.Color.titleOutline
         switchSignUpButton.setTitleColor(.white, for: .normal)
@@ -99,7 +68,6 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
     }
     
     private func createTextField(_ field: UITextField, placeholder: String) {
-        
         field.placeholder = placeholder
         field.font = .systemFont(ofSize: 14)
         field.backgroundColor = .white
@@ -111,59 +79,41 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
     
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        
-        let safeBoxTop = view.safeAreaInsets.top
-        let safeBoxBottom = view.safeAreaInsets.bottom
         let width = view.bounds.width
         let centerHorizontal = width / 2.0
-        
         let side: CGFloat = 28
         let fieldWidth = max(260, width - side * 2)
         let fieldHeight: CGFloat = 34
         let fieldHorizontal = (width - fieldWidth) / 2.0
-        
         let buttonWidth: CGFloat = 220
         let buttonHeight: CGFloat = 48
         let buttonHorizontal = (width - buttonWidth) / 2
-        
-        let titleTop = safeBoxTop + 72
-        let titlePaddingX: CGFloat = 24
-        let titlePaddingY: CGFloat = 12
-        
+        let titleTop = view.safeAreaInsets.top + 72
         let spaceTitleFields: CGFloat = 44
         let spaceFields: CGFloat = 18
         let spaceFieldsLogin: CGFloat = 30
-        //let spaceLoginNewLabel: CGFloat = 72
         let spaceNewLabelButton: CGFloat = 18
-        let bottomPadding: CGFloat = max(28, safeBoxBottom + 10)
-            
-        
+        let bottomPadding: CGFloat = max(28, view.safeAreaInsets.bottom + 10)
+
         titleLabel.sizeToFit()
-        let titleWidth = titleLabel.bounds.width + titlePaddingX * 2
-        let titleHeight = titleLabel.bounds.height + titlePaddingY * 2
+        let titleWidth = titleLabel.bounds.width + 48
+        let titleHeight = titleLabel.bounds.height + 32
         titleBackdrop.frame = CGRect(x: (width - titleWidth) / 2 - 40, y: titleTop - 10, width: titleWidth + 80, height: titleHeight + 20)
         titleLabel.center = CGPoint(x: centerHorizontal, y: titleBackdrop.frame.midY)
 
-        let userY = titleBackdrop.frame.maxY + spaceTitleFields
-        usernameField.frame = CGRect(x: fieldHorizontal, y: userY, width: fieldWidth, height: fieldHeight)
-        
-        let passY = usernameField.frame.maxY + spaceFields
+        let emailY = titleBackdrop.frame.maxY + spaceTitleFields
+        emailField.frame = CGRect(x: fieldHorizontal, y: emailY, width: fieldWidth, height: fieldHeight)
+        let passY = emailField.frame.maxY + spaceFields
         passwordField.frame = CGRect(x: fieldHorizontal, y: passY, width: fieldWidth, height: fieldHeight)
-        
         let loginY = passwordField.frame.maxY + spaceFieldsLogin
         loginButton.frame = CGRect(x: buttonHorizontal, y: loginY, width: buttonWidth, height: buttonHeight)
-        
         newUserLabel.sizeToFit()
         let signUpY = view.bounds.height - bottomPadding - buttonHeight
         let newLabelY = signUpY - spaceNewLabelButton - newUserLabel.bounds.height
-        
-        
         newUserLabel.center = CGPoint(x: centerHorizontal, y: newLabelY + newUserLabel.bounds.height/2)
-        
         switchSignUpButton.frame = CGRect(x: buttonHorizontal, y: signUpY, width: buttonWidth, height: buttonHeight)
-        
     }
-    
+
     @objc private func handleSignUp() {
         let signUpVC = SignUpViewController()
         signUpVC.modalPresentationStyle = .fullScreen
@@ -171,18 +121,22 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
     }
 
     @objc private func handleLogin() {
-        
-        guard let username = usernameField.text, !username.isEmpty,
+        guard let email = emailField.text, !email.isEmpty,
               let password = passwordField.text, !password.isEmpty else {
             print("Not all inputs are complete.")
             return
         }
         
-        
-        Auth.auth().signIn(withEmail: username, password: password) { (authRest, error) in
-            if let error = error as NSError? {
-                print("\(error.localizedDescription)")
+        Auth.auth().signIn(withEmail: email, password: password) { _, error in
+            if let error = error {
+                print("Login error: \(error.localizedDescription)")
                 return
+            }
+            DispatchQueue.main.async {
+                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                   let delegate = scene.delegate as? SceneDelegate {
+                    delegate.showMainApp(animated: true)
+                }
             }
         }
     }

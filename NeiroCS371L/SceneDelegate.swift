@@ -6,18 +6,55 @@
 //
 
 import UIKit
+import FirebaseAuth
+
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     var window: UIWindow?
 
 
-    func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
-        // Use this method to optionally configure and attach the UIWindow `window` to the provided UIWindowScene `scene`.
-        // If using a storyboard, the `window` property will automatically be initialized and attached to the scene.
-        // This delegate does not imply the connecting scene or session are new (see `application:configurationForConnectingSceneSession` instead).
-        guard let _ = (scene as? UIWindowScene) else { return }
-    }
+    func scene(_ scene: UIScene,
+                   willConnectTo session: UISceneSession,
+                   options connectionOptions: UIScene.ConnectionOptions) {
+            guard let windowScene = (scene as? UIWindowScene) else { return }
+            let window = UIWindow(windowScene: windowScene)
+            self.window = window
+
+            // Decide initial screen
+            if Auth.auth().currentUser != nil {
+                showMainApp(animated: false)
+            } else {
+                showAuth(animated: false)
+            }
+
+            window.makeKeyAndVisible()
+        }
+
+        // MARK: - Routing helpers
+
+        func showAuth(animated: Bool = true) {
+            let root = SignUpViewController() // or your LoginViewController
+            setRootViewController(root, animated: animated)
+        }
+
+        func showMainApp(animated: Bool = true) {
+            // Your floating navbar demo screen:
+            let root = FloatingBarDemoViewController()
+            setRootViewController(root, animated: animated)
+        }
+
+        private func setRootViewController(_ vc: UIViewController, animated: Bool) {
+            guard let window = self.window else { return }
+            if animated {
+                // Simple crossfade
+                UIView.transition(with: window, duration: 0.25, options: .transitionCrossDissolve, animations: {
+                    window.rootViewController = vc
+                }, completion: nil)
+            } else {
+                window.rootViewController = vc
+            }
+        }
 
     func sceneDidDisconnect(_ scene: UIScene) {
         // Called as the scene is being released by the system.
