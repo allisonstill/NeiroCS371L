@@ -14,7 +14,9 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         emailField.delegate = self
+        emailField.autocapitalizationType = .none
         passwordField.delegate = self
+        passwordField.autocapitalizationType = .none
 
         view.backgroundColor = ThemeColor.Color.backgroundColor
         setupScreen()

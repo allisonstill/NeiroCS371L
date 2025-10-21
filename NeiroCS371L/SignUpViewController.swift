@@ -16,8 +16,11 @@ class SignUpViewController: UIViewController, UITextFieldDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         emailField.delegate = self
+        emailField.autocapitalizationType = .none
         passwordField.delegate = self
+        passwordField.autocapitalizationType = .none
         verifyPasswordField.delegate = self
+        verifyPasswordField.autocapitalizationType = .none
 
         // Hide passwords
         passwordField.isSecureTextEntry = true
