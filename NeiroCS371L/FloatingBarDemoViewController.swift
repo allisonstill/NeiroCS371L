@@ -76,10 +76,14 @@ final class FloatingBarDemoViewController: UIViewController {
             case 4:
                 print("Settings")
                 self.floatingBar.select(index: 4)
+                // Present Settings screen (full screen)
+                let settings = SettingsViewController()
+                settings.modalPresentationStyle = .fullScreen
+                self.present(settings, animated: false)
+
                 // Option A: open Settings screen
                 // self.show(SettingsVC())
                 // Option B: quick action to log out from Settings
-                self.logOut()
             default:
                 break
             }
