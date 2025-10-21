@@ -116,9 +116,16 @@ final class FloatingBarDemoViewController: UIViewController {
                 self.floatingBar.select(index: 3)
                 self.showChild(SimplePlaceholderVC(title: "Profile"))
             case 4:
+                print("Settings")
                 self.floatingBar.select(index: 4)
-                // you can show a Settings VC here; for now, log out:
-                self.logOut()
+                // Present Settings screen (full screen)
+                let settings = SettingsViewController()
+                settings.modalPresentationStyle = .fullScreen
+                self.present(settings, animated: false)
+
+                // Option A: open Settings screen
+                // self.show(SettingsVC())
+                // Option B: quick action to log out from Settings
             default: break
             }
         }
