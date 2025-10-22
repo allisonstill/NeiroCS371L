@@ -48,7 +48,14 @@ final class PlaylistViewController: UITableViewController {
         }
         let addItem = UIBarButtonItem(systemItem: .add, primaryAction: addAction)
         addItem.accessibilityLabel = "Add Playlist"
-        navigationItem.rightBarButtonItem = addItem
+
+        // Set both forms (some containers read one or the other)
+        navigationItem.rightBarButtonItem  = addItem
+        navigationItem.rightBarButtonItems = [addItem]
+
+        // (helps with visibility + layout)
+        navigationItem.largeTitleDisplayMode = .always
+
     }
 
     private func addTapped() {

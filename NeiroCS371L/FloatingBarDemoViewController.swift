@@ -73,30 +73,58 @@ final class FloatingBarDemoViewController: UIViewController {
     }
 
     // MARK: - Switching tabs (child VCs)
-    private func showChild(_ vc: UIViewController) {
-        // remove old
+    func showChild(_ vc: UIViewController) {
+        // Remove old child
         if let old = currentChild {
             old.willMove(toParent: nil)
-            // crossfade from old to new
-            addChild(vc)
-            vc.view.frame = content.bounds
-            vc.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            transition(from: old, to: vc, duration: 0.25, options: .transitionCrossDissolve, animations: nil) { _ in
-                old.removeFromParent()
-                vc.didMove(toParent: self)
-                self.currentChild = vc
-            }
-            return
+            old.view.removeFromSuperview()
+            old.removeFromParent()
         }
 
-        // first time
+        // Add new child
         addChild(vc)
+        content.addSubview(vc.view)
         vc.view.frame = content.bounds
         vc.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        content.addSubview(vc.view)
         vc.didMove(toParent: self)
         currentChild = vc
+
+        // Ensure child's view/nav items exist
+        vc.loadViewIfNeeded()
+
+        // Make sure the nav bar is visible
+        navigationController?.setNavigationBarHidden(false, animated: false)
+        navigationController?.navigationBar.prefersLargeTitles = true
+
+        // Clear stale items on the CONTAINER first
+        navigationItem.title = nil
+        navigationItem.rightBarButtonItems = nil
+        navigationItem.rightBarButtonItem  = nil
+        navigationItem.leftBarButtonItems  = nil
+        navigationItem.leftBarButtonItem   = nil
+
+        // Mirror child's nav content
+        navigationItem.title = vc.navigationItem.title ?? vc.title
+        navigationItem.largeTitleDisplayMode = vc.navigationItem.largeTitleDisplayMode
+
+        // RIGHT (plural or singular)
+        if let items = vc.navigationItem.rightBarButtonItems {
+            navigationItem.rightBarButtonItems = items
+        } else {
+            navigationItem.rightBarButtonItem = vc.navigationItem.rightBarButtonItem
+        }
+
+        // LEFT (plural or singular)
+        if let items = vc.navigationItem.leftBarButtonItems {
+            navigationItem.leftBarButtonItems = items
+        } else {
+            navigationItem.leftBarButtonItem = vc.navigationItem.leftBarButtonItem
+        }
+
+        // Optional: unify tint so the "+" is visible on your theme
+        navigationController?.navigationBar.tintColor = .label
     }
+
 
     private func wireFloatingBar() {
         floatingBar.onTap = { [weak self] index in
