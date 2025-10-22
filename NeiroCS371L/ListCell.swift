@@ -14,7 +14,7 @@ class ListCell: UITableViewCell {
     private let emojiLabel = UILabel()
     private let titleLabel = UILabel()
     private let subLabel = UILabel()
-    private let arrow = UIImageView(image: UIImage(systemName: "chevron.right"))
+    private let trailingIcon = UIImageView()
     private let lead = UIView()
     private let stackH = UIStackView()
     private let stackV = UIStackView()
@@ -94,9 +94,10 @@ class ListCell: UITableViewCell {
         stackV.addArrangedSubview(titleLabel)
         stackV.addArrangedSubview(subLabel)
 
-        // Arrow
-        arrow.tintColor = .tertiaryLabel
-        arrow.setContentHuggingPriority(.required, for: .horizontal)
+        // Trailing icon
+        trailingIcon.tintColor = .tertiaryLabel
+        trailingIcon.setContentHuggingPriority(.required, for: .horizontal)
+        trailingIcon.isHidden = true // hidden by default
 
         // Horizontal stack
         stackH.axis = .horizontal
@@ -104,7 +105,7 @@ class ListCell: UITableViewCell {
         stackH.spacing = 14
         stackH.addArrangedSubview(lead)
         stackH.addArrangedSubview(stackV)
-        stackH.addArrangedSubview(arrow)
+        stackH.addArrangedSubview(trailingIcon)
 
         card.addSubview(stackH)
         stackH.translatesAutoresizingMaskIntoConstraints = false
@@ -117,11 +118,18 @@ class ListCell: UITableViewCell {
     }
 
     // MARK: - Configure
-    func configure(image: UIImage? = nil, emoji: String? = nil, title: String, subtitle: String? = nil) {
+    func configure(
+        image: UIImage? = nil,
+        emoji: String? = nil,
+        title: String,
+        subtitle: String? = nil,
+        trailingImage: UIImage? = nil // default is nil (no image)
+    ) {
         titleLabel.text = title
         subLabel.text = subtitle
         subLabel.isHidden = (subtitle == nil)
 
+        // Leading content
         if let img = image {
             imgView.image = img
             imgView.isHidden = false
@@ -136,6 +144,14 @@ class ListCell: UITableViewCell {
             emojiLabel.isHidden = true
             imgView.isHidden = true
             showLead(false)
+        }
+
+        // Trailing icon
+        if let trailing = trailingImage {
+            trailingIcon.image = trailing
+            trailingIcon.isHidden = false
+        } else {
+            trailingIcon.isHidden = true
         }
     }
 
