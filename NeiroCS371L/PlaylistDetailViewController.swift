@@ -1,5 +1,5 @@
 //
-//  PlaylistDetailViewController.swift .swift
+//  PlaylistDetailViewController.swift
 //  NeiroCS371L
 //
 //  Created by Andres Osornio on 10/22/25.
@@ -11,15 +11,25 @@ import AVFoundation
 final class PlaylistDetailViewController: UIViewController {
 
     var playlist: Playlist!
+    var onSave: ((Playlist) -> Void)?
     private var tableView = UITableView()
     private var player: AVAudioPlayer?
     private var currentlyPlayingIndex: IndexPath?
+    private let saveButton = UIButton(type: .system)
+    var isNewPlaylist: Bool = false
+    private var tableBottomConstraint: NSLayoutConstraint!
 
     override func viewDidLoad() {
         super.viewDidLoad()
         title = playlist.title
         view.backgroundColor = ThemeColor.Color.backgroundColor
         configureTableView()
+        if isNewPlaylist {
+                    configureSaveButton()
+                    tableBottomConstraint.constant = -80 // leave space for the button
+                } else {
+                    tableBottomConstraint.constant = 0   // no button, table goes to bottom
+                }
     }
 
     private func configureTableView() {
@@ -31,13 +41,33 @@ final class PlaylistDetailViewController: UIViewController {
         tableView.register(SongRow.self, forCellReuseIdentifier: "SongRow")
         view.addSubview(tableView)
 
+        tableBottomConstraint = tableView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: 0)
+        
         NSLayoutConstraint.activate([
             tableView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            tableView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
+            tableBottomConstraint
         ])
     }
+    
+    private func configureSaveButton() {
+            saveButton.translatesAutoresizingMaskIntoConstraints = false
+            saveButton.setTitle("Save Playlist", for: .normal)
+            saveButton.titleLabel?.font = .systemFont(ofSize: 18, weight: .semibold)
+            saveButton.setTitleColor(.white, for: .normal)
+            saveButton.backgroundColor = .systemBlue
+            saveButton.layer.cornerRadius = 12
+            saveButton.addTarget(self, action: #selector(saveTapped), for: .touchUpInside)
+
+            view.addSubview(saveButton)
+            NSLayoutConstraint.activate([
+                saveButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+                saveButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+                saveButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
+                saveButton.heightAnchor.constraint(equalToConstant: 50)
+            ])
+        }
 
     // MARK: - Playback
     private func playSnippet(for song: Song, at indexPath: IndexPath) {
@@ -70,6 +100,36 @@ final class PlaylistDetailViewController: UIViewController {
             print("Couldn’t play snippet:", error)
         }
     }
+    
+    @objc private func saveTapped() {
+        let hadOnSave = (onSave != nil)
+        onSave?(playlist)
+
+        guard let nav = navigationController else { return }
+
+        // 1) If PlaylistVC is on the stack, handle that case
+        if let listVC = nav.viewControllers.compactMap({ $0 as? PlaylistViewController }).first {
+            if !hadOnSave { listVC.addPlaylist(playlist) }
+            nav.popToViewController(listVC, animated: true)
+            return
+        }
+
+        // 2) Normal case with the container as root
+        if let container = nav.viewControllers.first as? FloatingBarDemoViewController {
+            // find the existing child instance of PlaylistViewController
+            if let listVC = container.children.compactMap({ $0 as? PlaylistViewController }).first {
+                if !hadOnSave { listVC.addPlaylist(playlist) }
+                // pop all the way back to the container
+                nav.popToRootViewController(animated: true)
+                return
+            }
+        }
+
+        // 3) Fallback: just pop one level
+        nav.popViewController(animated: true)
+    }
+
+
 }
 
 // MARK: - Table Delegate + DataSource
@@ -117,6 +177,11 @@ final class SongRow: UITableViewCell {
         selectionStyle = .none
         backgroundColor = ThemeColor.Color.backgroundColor
         configureUI()
+        
+        layer.borderColor = UIColor.white.withAlphaComponent(0.3).cgColor
+        layer.borderWidth = 0.5
+        layer.cornerRadius = 10
+        layer.masksToBounds = true
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) not implemented") }
@@ -133,16 +198,21 @@ final class SongRow: UITableViewCell {
         artistLabel.textColor = .lightGray
 
         playButton.tintColor = .systemBlue
+        playButton.setContentHuggingPriority(.required, for: .horizontal)
+        playButton.setContentCompressionResistancePriority(.required, for: .horizontal)
         playButton.addTarget(self, action: #selector(didTapPlay), for: .touchUpInside)
 
         let textStack = UIStackView(arrangedSubviews: [titleLabel, artistLabel])
         textStack.axis = .vertical
         textStack.spacing = 2
 
-        let hStack = UIStackView(arrangedSubviews: [emojiLabel, textStack, playButton])
+        // Flexible spacer pushes playButton to the right edge
+        let spacer = UIView()
+
+        let hStack = UIStackView(arrangedSubviews: [emojiLabel, textStack, spacer, playButton])
         hStack.axis = .horizontal
         hStack.alignment = .center
-        hStack.spacing = 16
+        hStack.spacing = 12
         hStack.translatesAutoresizingMaskIntoConstraints = false
 
         contentView.addSubview(hStack)
@@ -153,6 +223,7 @@ final class SongRow: UITableViewCell {
             hStack.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -10)
         ])
     }
+
 
     func configure(with song: Song) {
         titleLabel.text = song.title

@@ -8,17 +8,39 @@
 import UIKit
 import FirebaseAuth
 
+enum BackendData {
+    static let allGenres: [String] = [
+        "Pop","Rock","Rap","Hip-Hop","R&B","EDM","House","Techno","Trance","Drum & Bass",
+        "Lo-Fi","Indie","Alternative","Funk","Soul","Jazz","Blues","Classical","Country",
+        "Reggae","K-Pop","J-Pop","Metal","Punk","Folk","Latin","Afrobeats","Dancehall"
+    ]
+    static let allArtists: [String] = [
+        "Drake","Taylor Swift","Bad Bunny","Billie Eilish","Ed Sheeran","Kanye West","The Weeknd",
+        "Ariana Grande","Coldplay","Imagine Dragons","Kendrick Lamar","Doja Cat","Dua Lipa",
+        "SZA","Travis Scott","Post Malone","Olivia Rodrigo","Harry Styles","Rihanna","Eminem"
+    ]
+}
+
+// One-session memory for this screen
+private enum SessionStore {
+    static var appearanceStyle: String = "dark"
+    static var playlistMinutes: Int = 10
+    static var avatarImage: UIImage?
+    static var preferredGenres  = Set<String>()
+    static var preferredArtists = Set<String>()
+    static var unwantedGenres   = Set<String>()
+    static var unwantedArtists  = Set<String>()
+}
+
 final class SettingsViewController: UIViewController, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
 
-    // MARK: - UI
+    // UI
     private let scroll = UIScrollView()
     private let content = UIStackView()
 
-    // Header
     private let headerCard = UIView()
     private let headerLabel = UILabel()
 
-    // Profile
     private let profileRow = UIStackView()
     private let avatar = UIImageView()
     private let changePhotoButton = UIButton(type: .system)
@@ -27,28 +49,25 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
     private let usernameValue = UILabel()
     private let spotifyPill = UIButton(type: .system)
 
-    // Appearance
     private let appearanceCard = UIView()
     private let appearanceTitle = UILabel()
-    private let appearanceSeg = UISegmentedControl(items: ["Light", "Dark"])
+    private let appearanceSeg = UISegmentedControl(items: ["Dark", "Light"])
 
-    // Playlist length
     private let lengthCard = UIView()
     private let lengthTitle = UILabel()
     private let lengthSeg = UISegmentedControl(items: ["10 Min", "30 Min", "60 Min", "120 Min"])
 
-    // Dropdowns
-    private let unwantedGenres = ExpandableRow(title: "Unwanted Genres")
-    private let unwantedArtists = ExpandableRow(title: "Unwanted Artists")
+    // Preference rows
+    private let preferredGenresRow = PickerRow(title: "Preferred Genres")
+    private let preferredArtistsRow = PickerRow(title: "Preferred Artists")
+    private let unwantedGenresRow   = PickerRow(title: "Unwanted Genres")
+    private let unwantedArtistsRow  = PickerRow(title: "Unwanted Artists")
 
-    // Actions
-    private let clearHistoryButton = UIButton(type: .system)
-    private let signOutButton = UIButton(type: .system)
-
-    // MARK: - Keys
-    private let kAppearanceKey = "neiro.appearance"          // "light" | "dark"
-    private let kPlaylistMinutesKey = "neiro.playlist.minutes"
-    private let kAvatarPNGKey = "neiro.avatar.png"
+    // Local copies bound to SessionStore
+    private var preferredGenresList  = Set<String>()
+    private var preferredArtistsList = Set<String>()
+    private var unwantedGenresList   = Set<String>()
+    private var unwantedArtistsList  = Set<String>()
 
     // MARK: - Lifecycle
     override func viewDidLoad() {
@@ -59,9 +78,9 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         buildProfile()
         buildAppearance()
         buildLength()
-        buildDropdowns()
+        buildPreferenceRows()
         buildActions()
-        loadPersisted()
+        loadFromSession()
         populateUser()
     }
 
@@ -115,7 +134,6 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         profileRow.alignment = .center
         profileRow.spacing = 16
 
-        // avatar
         avatar.image = UIImage(systemName: "person.crop.circle.fill")
         avatar.tintColor = .secondaryLabel
         avatar.contentMode = .scaleAspectFill
@@ -182,7 +200,6 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         appearanceTitle.font = UIFont.boldSystemFont(ofSize: 22)
         appearanceTitle.textColor = .white
 
-        appearanceSeg.selectedSegmentIndex = (UserDefaults.standard.string(forKey: kAppearanceKey) == "dark") ? 0 : 1
         appearanceSeg.addTarget(self, action: #selector(appearanceChanged), for: .valueChanged)
 
         let v = UIStackView(arrangedSubviews: [appearanceTitle, appearanceSeg])
@@ -207,7 +224,6 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         lengthTitle.font = UIFont.boldSystemFont(ofSize: 22)
         lengthTitle.textColor = .white
 
-        lengthSeg.selectedSegmentIndex = 0
         lengthSeg.addTarget(self, action: #selector(lengthChanged), for: .valueChanged)
 
         let v = UIStackView(arrangedSubviews: [lengthTitle, lengthSeg])
@@ -224,26 +240,32 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         ])
     }
 
-    private func buildDropdowns() {
-        content.addArrangedSubview(unwantedGenres)
-        content.addArrangedSubview(unwantedArtists)
+    private func buildPreferenceRows() {
+        // Make entire rows tappable
+        preferredGenresRow.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(pickPreferredGenres)))
+        preferredArtistsRow.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(pickPreferredArtists)))
+        unwantedGenresRow.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(pickUnwantedGenres)))
+        unwantedArtistsRow.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(pickUnwantedArtists)))
 
-        // Add some placeholder content so the dropdown visibly expands.
-        unwantedGenres.setBody(rows: ["Rock", "EDM", "Country"])
-        unwantedArtists.setBody(rows: ["Artist A", "Artist B", "Artist C"])
+        content.addArrangedSubview(preferredGenresRow)
+        content.addArrangedSubview(preferredArtistsRow)
+        content.addArrangedSubview(unwantedGenresRow)
+        content.addArrangedSubview(unwantedArtistsRow)
+
+        refreshPickerSubtitles()
     }
 
     private func buildActions() {
-        // Clear history
+        let clearHistoryButton = UIButton(type: .system)
         clearHistoryButton.setTitle("Clear History", for: .normal)
         clearHistoryButton.backgroundColor = UIColor.systemGray.withAlphaComponent(0.25)
         clearHistoryButton.setTitleColor(.white, for: .normal)
         clearHistoryButton.layer.cornerRadius = 14
         clearHistoryButton.heightAnchor.constraint(equalToConstant: 50).isActive = true
-        // (no-op for now)
 
-        // Sign out
+        let signOutButton = UIButton(type: .system)
         signOutButton.setTitle("Sign Out", for: .normal)
+        signOutButton.titleLabel?.textColor = .gray
         signOutButton.backgroundColor = ThemeColor.Color.titleOutline
         signOutButton.setTitleColor(.white, for: .normal)
         signOutButton.layer.cornerRadius = 14
@@ -263,31 +285,40 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         v.layer.shadowOffset = CGSize(width: 0, height: 6)
     }
 
-    // MARK: - Populate & Persist
-    private func populateUser() {
-        let user = Auth.auth().currentUser
-        let display = user?.displayName ?? user?.email ?? "username"
-        usernameValue.text = display
+    // MARK: - Session I/O
+    private func loadFromSession() {
+        appearanceSeg.selectedSegmentIndex = (SessionStore.appearanceStyle == "dark") ? 1 : 0
+        applyAppearance(SessionStore.appearanceStyle)
 
-        if let data = UserDefaults.standard.data(forKey: kAvatarPNGKey),
-           let img = UIImage(data: data) {
+        let idx: [Int:Int] = [10:0, 30:1, 60:2, 120:3]
+        lengthSeg.selectedSegmentIndex = idx[SessionStore.playlistMinutes] ?? 0
+
+        preferredGenresList  = SessionStore.preferredGenres
+        preferredArtistsList = SessionStore.preferredArtists
+        unwantedGenresList   = SessionStore.unwantedGenres
+        unwantedArtistsList  = SessionStore.unwantedArtists
+
+        if let img = SessionStore.avatarImage {
             avatar.image = img
             avatar.contentMode = .scaleAspectFill
         }
     }
 
-    private func loadPersisted() {
-        // Appearance
-        let style = UserDefaults.standard.string(forKey: kAppearanceKey) ?? "dark"
-        appearanceSeg.selectedSegmentIndex = (style == "dark") ? 0 : 1
-        applyAppearance(style)
-
-        // Playlist length
-        let minutes = UserDefaults.standard.integer(forKey: kPlaylistMinutesKey)
-        let indexMap: [Int:Int] = [10:0, 30:1, 60:2, 120:3]
-        lengthSeg.selectedSegmentIndex = indexMap[minutes] ?? 0
+    private func saveToSession() {
+        SessionStore.preferredGenres  = preferredGenresList
+        SessionStore.preferredArtists = preferredArtistsList
+        SessionStore.unwantedGenres   = unwantedGenresList
+        SessionStore.unwantedArtists  = unwantedArtistsList
     }
 
+    private func summaryText(for set: Set<String>) -> String {
+        guard !set.isEmpty else { return "None selected" }
+        let list = Array(set).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        return list.count <= 3 ? list.joined(separator: ", ")
+                               : "\(list.prefix(3).joined(separator: ", ")) … +\(list.count - 3)"
+    }
+
+<<<<<<< Updated upstream
     private func applyAppearance(_ style: String) {
         let mode: UIUserInterfaceStyle = (style == "dark") ? .dark : .light
         // Apply to the whole window if possible
@@ -298,20 +329,30 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
             // Fallback: at least apply to this VC
             overrideUserInterfaceStyle = mode
         }
+=======
+    private func refreshPickerSubtitles() {
+        preferredGenresRow.setSubtitle(summaryText(for: preferredGenresList))
+        preferredArtistsRow.setSubtitle(summaryText(for: preferredArtistsList))
+        unwantedGenresRow.setSubtitle(summaryText(for: unwantedGenresList))
+        unwantedArtistsRow.setSubtitle(summaryText(for: unwantedArtistsList))
+>>>>>>> Stashed changes
     }
 
 
     // MARK: - Actions
     @objc private func appearanceChanged() {
-        let style = appearanceSeg.selectedSegmentIndex == 0 ? "dark" : "light"
-        UserDefaults.standard.setValue(style, forKey: kAppearanceKey)
+        let style = (appearanceSeg.selectedSegmentIndex == 0) ? "light" : "dark"
+        SessionStore.appearanceStyle = style
         applyAppearance(style)
     }
 
     @objc private func lengthChanged() {
-        let minutes: [Int] = [10, 30, 60, 120]
-        let value = minutes[lengthSeg.selectedSegmentIndex]
-        UserDefaults.standard.setValue(value, forKey: kPlaylistMinutesKey)
+        let minutes = [10, 30, 60, 120][lengthSeg.selectedSegmentIndex]
+        SessionStore.playlistMinutes = minutes
+    }
+
+    private func applyAppearance(_ style: String) {
+        overrideUserInterfaceStyle = (style == "light") ? .light : .dark
     }
 
     @objc private func signOutTapped() {
@@ -337,101 +378,213 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
     // MARK: - UIImagePickerControllerDelegate
     func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
         picker.dismiss(animated: true)
-        if let img = (info[.editedImage] ?? info[ .originalImage ]) as? UIImage {
+        if let img = (info[.editedImage] ?? info[.originalImage]) as? UIImage {
             avatar.image = img
             avatar.contentMode = .scaleAspectFill
-            if let data = img.pngData() {
-                UserDefaults.standard.setValue(data, forKey: kAvatarPNGKey)
-            }
+            SessionStore.avatarImage = img
+        }
+    }
+    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) { picker.dismiss(animated: true) }
+
+    // MARK: - Preference pickers
+    @objc private func pickPreferredGenres() {
+        presentPicker(title: "Preferred Genres",
+                      items: BackendData.allGenres,
+                      selected: preferredGenresList) { [weak self] sel in
+            self?.preferredGenresList = sel
+            self?.saveToSession()
+            self?.refreshPickerSubtitles()
+        }
+    }
+    @objc private func pickPreferredArtists() {
+        presentPicker(title: "Preferred Artists",
+                      items: BackendData.allArtists,
+                      selected: preferredArtistsList) { [weak self] sel in
+            self?.preferredArtistsList = sel
+            self?.saveToSession()
+            self?.refreshPickerSubtitles()
+        }
+    }
+    @objc private func pickUnwantedGenres() {
+        presentPicker(title: "Unwanted Genres",
+                      items: BackendData.allGenres,
+                      selected: unwantedGenresList) { [weak self] sel in
+            self?.unwantedGenresList = sel
+            self?.saveToSession()
+            self?.refreshPickerSubtitles()
+        }
+    }
+    @objc private func pickUnwantedArtists() {
+        presentPicker(title: "Unwanted Artists",
+                      items: BackendData.allArtists,
+                      selected: unwantedArtistsList) { [weak self] sel in
+            self?.unwantedArtistsList = sel
+            self?.saveToSession()
+            self?.refreshPickerSubtitles()
         }
     }
 
-    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-        picker.dismiss(animated: true)
+    private func presentPicker(title: String,
+                               items: [String],
+                               selected: Set<String>,
+                               onDone: @escaping (Set<String>) -> Void) {
+        let vc = SearchableMultiPickerViewController(title: title,
+                                                     items: items,
+                                                     initiallySelected: selected,
+                                                     onDone: onDone)
+        let nav = UINavigationController(rootViewController: vc)
+
+        let ap = UINavigationBarAppearance()
+        ap.configureWithOpaqueBackground()
+        ap.backgroundColor = ThemeColor.Color.backgroundColor
+        ap.titleTextAttributes = [.foregroundColor: UIColor.white]
+        ap.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
+        nav.navigationBar.standardAppearance = ap
+        nav.navigationBar.scrollEdgeAppearance = ap
+        nav.navigationBar.tintColor = .white
+
+        present(nav, animated: true)
+    }
+
+    private func populateUser() {
+        let user = Auth.auth().currentUser
+        let display = user?.displayName ?? user?.email ?? "username"
+        usernameValue.text = display
     }
 }
 
-// MARK: - Simple expandable row
-private final class ExpandableRow: UIView {
-    private let titleButton = UIButton(type: .system)
+// MARK: - Searchable picker
+final class SearchableMultiPickerViewController: UITableViewController {
+    private let allItems: [String]
+    private var filtered: [String]
+    private var selected: Set<String>
+    private let onDone: (Set<String>) -> Void
+
+    private let searchController = UISearchController(searchResultsController: nil)
+
+    init(title: String, items: [String], initiallySelected: Set<String>, onDone: @escaping (Set<String>) -> Void) {
+        self.allItems = items.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        self.filtered = self.allItems
+        self.selected = initiallySelected
+        self.onDone = onDone
+        super.init(style: .insetGrouped)
+        self.title = title
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        // Use system backgrounds so text colors adapt correctly
+        view.backgroundColor = .systemBackground
+        tableView.backgroundColor = .systemBackground
+        tableView.rowHeight = 54
+        tableView.separatorStyle = .singleLine
+        tableView.separatorColor = UIColor.label.withAlphaComponent(0.15)
+        tableView.separatorInset = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
+        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
+
+        searchController.obscuresBackgroundDuringPresentation = false
+        searchController.searchBar.placeholder = "Type to filter"
+        searchController.searchBar.searchTextField.textColor = .label
+        searchController.searchBar.searchTextField.leftView?.tintColor = .secondaryLabel
+        searchController.searchResultsUpdater = self
+        navigationItem.searchController = searchController
+        navigationItem.hidesSearchBarWhenScrolling = false
+
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            title: "Done",
+            style: .done,
+            target: self,
+            action: #selector(doneTapped)
+        )
+    }
+
+    @objc private func doneTapped() {
+        onDone(selected)
+        dismiss(animated: true)
+    }
+
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { filtered.count }
+
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let item = filtered[indexPath.row]
+        let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
+
+        var cfg = UIListContentConfiguration.cell()
+        cfg.text = item
+        cfg.textProperties.color = .label            // <-- dark in light mode, light in dark mode
+        cfg.secondaryText = selected.contains(item) ? "Selected" : nil
+        cfg.secondaryTextProperties.color = .secondaryLabel
+        cell.contentConfiguration = cfg
+
+        cell.backgroundColor = .clear
+        cell.contentView.backgroundColor = .clear
+        cell.tintColor = .systemBlue
+        cell.accessoryType = selected.contains(item) ? .checkmark : .none
+        return cell
+    }
+
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
+        let item = filtered[indexPath.row]
+        if selected.contains(item) { selected.remove(item) } else { selected.insert(item) }
+        tableView.reloadRows(at: [indexPath], with: .automatic)
+    }
+}
+
+extension SearchableMultiPickerViewController: UISearchResultsUpdating {
+    func updateSearchResults(for searchController: UISearchController) {
+        let q = (searchController.searchBar.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        filtered = q.isEmpty ? allItems : allItems.filter { $0.localizedCaseInsensitiveContains(q) }
+        tableView.reloadData()
+    }
+}
+
+// MARK: - Simple row (fully tappable)
+private final class PickerRow: UIControl {
+    private let titleLabel = UILabel()
+    private let subtitleLabel = UILabel()
     private let chevron = UIImageView(image: UIImage(systemName: "chevron.right"))
-    private let container = UIStackView()
-    private var isOpen = false
 
     init(title: String) {
         super.init(frame: .zero)
-        setup(title: title)
-    }
-
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        setup(title: "")
-    }
-
-    private func setup(title: String) {
+        backgroundColor = UIColor(white: 0.95, alpha: 1)
         layer.cornerRadius = 18
-        backgroundColor = UIColor(white: 1, alpha: 0.05)
 
-        let bar = UIView()
-        bar.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(bar)
+        titleLabel.text = title
+        titleLabel.font = UIFont.boldSystemFont(ofSize: 18)
+        titleLabel.textColor = .label
 
-        titleButton.setTitle(title, for: .normal)
-        titleButton.setTitleColor(.white, for: .normal)
-        titleButton.titleLabel?.font = UIFont.boldSystemFont(ofSize: 18)
-        titleButton.contentHorizontalAlignment = .left
-        titleButton.addTarget(self, action: #selector(toggle), for: .touchUpInside)
+        subtitleLabel.font = UIFont.systemFont(ofSize: 14, weight: .medium)
+        subtitleLabel.textColor = .secondaryLabel
+        subtitleLabel.numberOfLines = 1
 
-        chevron.tintColor = .white
+        chevron.tintColor = .tertiaryLabel
         chevron.setContentHuggingPriority(.required, for: .horizontal)
 
-        let barStack = UIStackView(arrangedSubviews: [titleButton, chevron])
-        barStack.axis = .horizontal
-        barStack.alignment = .center
-        barStack.translatesAutoresizingMaskIntoConstraints = false
-        bar.addSubview(barStack)
+        let v = UIStackView(arrangedSubviews: [titleLabel, subtitleLabel])
+        v.axis = .vertical
+        v.spacing = 4
+        v.isUserInteractionEnabled = false
 
+        let h = UIStackView(arrangedSubviews: [v, chevron])
+        h.axis = .horizontal
+        h.alignment = .center
+        h.spacing = 12
+        h.translatesAutoresizingMaskIntoConstraints = false
+        h.isUserInteractionEnabled = false
+        chevron.isUserInteractionEnabled = false
+
+        addSubview(h)
         NSLayoutConstraint.activate([
-            bar.topAnchor.constraint(equalTo: topAnchor),
-            bar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-            bar.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
-
-            barStack.topAnchor.constraint(equalTo: bar.topAnchor, constant: 14),
-            barStack.leadingAnchor.constraint(equalTo: bar.leadingAnchor),
-            barStack.trailingAnchor.constraint(equalTo: bar.trailingAnchor),
-            barStack.bottomAnchor.constraint(equalTo: bar.bottomAnchor, constant: -14),
-        ])
-
-        container.axis = .vertical
-        container.spacing = 8
-        container.isHidden = true
-        addSubview(container)
-        container.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            container.topAnchor.constraint(equalTo: bar.bottomAnchor, constant: 10),
-            container.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
-            container.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
-            container.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -12)
+            h.topAnchor.constraint(equalTo: topAnchor, constant: 14),
+            h.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+            h.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+            h.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -14)
         ])
     }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func setBody(rows: [String]) {
-        container.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        for r in rows {
-            let lbl = UILabel()
-            lbl.text = "• \(r)"
-            lbl.textColor = .secondaryLabel
-            lbl.font = UIFont.systemFont(ofSize: 16)
-            container.addArrangedSubview(lbl)
-        }
-    }
-
-    @objc private func toggle() {
-        isOpen.toggle()
-        UIView.animate(withDuration: 0.2) {
-            self.container.isHidden = !self.isOpen
-            self.chevron.transform = self.isOpen ? CGAffineTransform(rotationAngle: .pi/2) : .identity
-        }
-    }
+    func setSubtitle(_ text: String?) { subtitleLabel.text = text }
 }
-

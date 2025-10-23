@@ -1,3 +1,10 @@
+//
+//  CreatePlaylistViewController.swift
+//  NeiroCS371L
+//
+//  Created by Jacob Mathew on 10/20/25.
+//
+
 import UIKit
 
 final class CreatePlaylistViewController: UIViewController {
@@ -12,7 +19,6 @@ final class CreatePlaylistViewController: UIViewController {
                             "🔥","❤️","⚡️","➕"]
 
     private var collectionView: UICollectionView!
-    private var selectedEmoji: String?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -48,13 +54,10 @@ final class CreatePlaylistViewController: UIViewController {
         let makeRandom = primaryButton("Select Random Playlist Mood")
         makeRandom.addTarget(self, action: #selector(randomTapped), for: .touchUpInside)
 
-        let createOwn = primaryButton("Create Your Own Playlist")
-        createOwn.addTarget(self, action: #selector(createTapped), for: .touchUpInside)
-
         let describe = secondaryButton("Describe Your Own Playlist")
         describe.addTarget(self, action: #selector(describeTapped), for: .touchUpInside)
 
-        let stack = UIStackView(arrangedSubviews: [makeRandom, createOwn, describe])
+        let stack = UIStackView(arrangedSubviews: [makeRandom, describe])
         stack.axis = .vertical
         stack.spacing = 12
         stack.alignment = .fill
@@ -110,36 +113,28 @@ final class CreatePlaylistViewController: UIViewController {
 
     // MARK: Actions
     @objc private func randomTapped() {
-        selectedEmoji = emojis.randomElement()
-        finalizeIfPossible()
-    }
-
-    @objc private func createTapped() {
-        finalizeIfPossible()
+        if let random = emojis.randomElement() {
+            handleEmojiSelection(random)
+        }
     }
 
     @objc private func describeTapped() {
-        // later: open a prompt; for now just finalize if emoji is selected
-        finalizeIfPossible()
+        // placeholder for text/AI prompt integration later
+        let ac = UIAlertController(title: "Coming Soon", message: "Describe feature not yet implemented.", preferredStyle: .alert)
+        ac.addAction(UIAlertAction(title: "OK", style: .cancel))
+        present(ac, animated: true)
     }
 
-    private func finalizeIfPossible() {
-        guard let emoji = selectedEmoji else {
-            let ac = UIAlertController(title: "Pick an emoji", message: "Please choose a playlist mood.", preferredStyle: .alert)
-            ac.addAction(UIAlertAction(title: "OK", style: .cancel))
-            present(ac, animated: true)
-            return
-        }
-
-        // ✅ NEW: Check if emoji has a predefined hardcoded playlist
+    private func handleEmojiSelection(_ emoji: String) {
         if let playlist = PlaylistLibrary.playlist(for: emoji) {
             let detailVC = PlaylistDetailViewController()
             detailVC.playlist = playlist
+            detailVC.isNewPlaylist = true
             navigationController?.pushViewController(detailVC, animated: true)
             return
         }
 
-        // (Old behavior — fallback if no hardcoded playlist exists)
+        // Otherwise create a new one
         let new = Playlist(title: "New \(emoji) Playlist",
                            emoji: emoji,
                            createdAt: Date(),
@@ -160,7 +155,6 @@ extension CreatePlaylistViewController: UICollectionViewDelegateFlowLayout, UICo
         return cell
     }
 
-    // 4 columns; adapts automatically to width
     func collectionView(_ collectionView: UICollectionView,
                         layout collectionViewLayout: UICollectionViewLayout,
                         sizeForItemAt indexPath: IndexPath) -> CGSize {
@@ -171,9 +165,8 @@ extension CreatePlaylistViewController: UICollectionViewDelegateFlowLayout, UICo
     }
 
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        selectedEmoji = emojis[indexPath.item]
-        collectionView.visibleCells.forEach { ($0 as? EmojiCell)?.isChosen = false }
-        (collectionView.cellForItem(at: indexPath) as? EmojiCell)?.isChosen = true
+        let emoji = emojis[indexPath.item]
+        handleEmojiSelection(emoji)
     }
 }
 
@@ -195,17 +188,10 @@ final class EmojiCell: UICollectionViewCell {
             label.centerYAnchor.constraint(equalTo: contentView.centerYAnchor)
         ])
     }
+
     required init?(coder: NSCoder) { super.init(coder: coder) }
 
     func configure(_ emoji: String) {
         label.text = emoji
-        isChosen = false
-    }
-
-    var isChosen: Bool = false {
-        didSet {
-            contentView.layer.borderWidth = isChosen ? 2 : 0
-            contentView.layer.borderColor = isChosen ? UIColor.label.withAlphaComponent(0.85).cgColor : nil
-        }
     }
 }

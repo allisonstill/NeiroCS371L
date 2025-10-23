@@ -1,3 +1,10 @@
+//
+//  SignUpViewController.swift
+//  NeiroCS371L
+//
+//  Created by Allison Still on 10/16/25.
+//
+
 import UIKit
 import FirebaseAuth
 

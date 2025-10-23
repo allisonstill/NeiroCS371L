@@ -14,7 +14,12 @@ class ListCell: UITableViewCell {
     private let emojiLabel = UILabel()
     private let titleLabel = UILabel()
     private let subLabel = UILabel()
-    private let trailingIcon = UIImageView()
+
+    // Trailing vertical stack
+    private let trailingStack = UIStackView()
+    private let trailingTopIcon = UIImageView()
+    private let trailingBottomIcon = UIImageView()
+
     private let lead = UIView()
     private let stackH = UIStackView()
     private let stackV = UIStackView()
@@ -22,23 +27,22 @@ class ListCell: UITableViewCell {
     private var leadWidth: NSLayoutConstraint!
     private let leadSize: CGFloat = 56
 
-    // MARK: - Setup
+    // Tap callbacks
+    private var trailingTopTapHandler: (() -> Void)?
+    private var trailingBottomTapHandler: (() -> Void)?
+
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
         setupUI()
     }
-
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        setupUI()
-    }
+    required init?(coder: NSCoder) { super.init(coder: coder); setupUI() }
 
     private func setupUI() {
         backgroundColor = .clear
         contentView.backgroundColor = .clear
         selectionStyle = .none
 
-        // Card background
+        // Card
         card.backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.9)
         card.layer.cornerRadius = 16
         card.layer.shadowColor = UIColor.black.cgColor
@@ -54,7 +58,7 @@ class ListCell: UITableViewCell {
             card.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16)
         ])
 
-        // Image / Emoji
+        // Lead (image/emoji)
         imgView.contentMode = .scaleAspectFill
         imgView.layer.cornerRadius = 12
         imgView.clipsToBounds = true
@@ -81,10 +85,9 @@ class ListCell: UITableViewCell {
         leadWidth.isActive = true
         lead.heightAnchor.constraint(greaterThanOrEqualToConstant: leadSize).isActive = true
 
-        // Text stack
+        // Text
         titleLabel.font = .systemFont(ofSize: 18, weight: .semibold)
         titleLabel.textColor = .label
-
         subLabel.font = .systemFont(ofSize: 13, weight: .medium)
         subLabel.textColor = .secondaryLabel
         subLabel.numberOfLines = 1
@@ -94,18 +97,45 @@ class ListCell: UITableViewCell {
         stackV.addArrangedSubview(titleLabel)
         stackV.addArrangedSubview(subLabel)
 
-        // Trailing icon
-        trailingIcon.tintColor = .tertiaryLabel
-        trailingIcon.setContentHuggingPriority(.required, for: .horizontal)
-        trailingIcon.isHidden = true // hidden by default
+        // Trailing icons stack (right side, vertical)
+        trailingStack.axis = .vertical
+        trailingStack.alignment = .center
+        trailingStack.spacing = 8
+        trailingStack.isLayoutMarginsRelativeArrangement = false
 
-        // Horizontal stack
+        [trailingTopIcon, trailingBottomIcon].forEach { icon in
+            icon.tintColor = .tertiaryLabel
+            icon.contentMode = .scaleAspectFit
+            icon.preferredSymbolConfiguration = .init(pointSize: 16, weight: .semibold)
+            icon.isUserInteractionEnabled = true
+            icon.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                icon.widthAnchor.constraint(equalToConstant: 20),
+                icon.heightAnchor.constraint(equalToConstant: 20)
+            ])
+        }
+
+        // Gestures
+        let topTap = UITapGestureRecognizer(target: self, action: #selector(didTapTop))
+        topTap.cancelsTouchesInView = true
+        trailingTopIcon.addGestureRecognizer(topTap)
+
+        let bottomTap = UITapGestureRecognizer(target: self, action: #selector(didTapBottom))
+        bottomTap.cancelsTouchesInView = true
+        trailingBottomIcon.addGestureRecognizer(bottomTap)
+
+        trailingStack.addArrangedSubview(trailingTopIcon)
+        trailingStack.addArrangedSubview(trailingBottomIcon)
+        trailingStack.isHidden = true // hidden by default
+
+        // Horizontal content
         stackH.axis = .horizontal
         stackH.alignment = .center
         stackH.spacing = 14
         stackH.addArrangedSubview(lead)
         stackH.addArrangedSubview(stackV)
-        stackH.addArrangedSubview(trailingIcon)
+        stackH.addArrangedSubview(UIView()) // flexible spacer
+        stackH.addArrangedSubview(trailingStack)
 
         card.addSubview(stackH)
         stackH.translatesAutoresizingMaskIntoConstraints = false
@@ -117,19 +147,22 @@ class ListCell: UITableViewCell {
         ])
     }
 
-    // MARK: - Configure
+    // Configure
     func configure(
         image: UIImage? = nil,
         emoji: String? = nil,
         title: String,
         subtitle: String? = nil,
-        trailingImage: UIImage? = nil // default is nil (no image)
+        trailingTopImage: UIImage? = nil,
+        trailingTopTap: (() -> Void)? = nil,
+        trailingBottomImage: UIImage? = nil,
+        trailingBottomTap: (() -> Void)? = nil
     ) {
         titleLabel.text = title
         subLabel.text = subtitle
         subLabel.isHidden = (subtitle == nil)
 
-        // Leading content
+        // Leading icon logic
         if let img = image {
             imgView.image = img
             imgView.isHidden = false
@@ -146,14 +179,23 @@ class ListCell: UITableViewCell {
             showLead(false)
         }
 
-        // Trailing icon
-        if let trailing = trailingImage {
-            trailingIcon.image = trailing
-            trailingIcon.isHidden = false
-        } else {
-            trailingIcon.isHidden = true
-        }
+        // Trailing icons
+        trailingTopTapHandler = trailingTopTap
+        trailingBottomTapHandler = trailingBottomTap
+
+        trailingTopIcon.image = trailingTopImage
+        trailingTopIcon.isHidden = (trailingTopImage == nil)
+
+        trailingBottomIcon.image = trailingBottomImage
+        trailingBottomIcon.isHidden = (trailingBottomImage == nil)
+        trailingBottomIcon.tintColor = trailingBottomImage == nil ? .tertiaryLabel : .systemRed
+
+        // Hide whole stack if both are nil
+        trailingStack.isHidden = (trailingTopImage == nil && trailingBottomImage == nil)
     }
+
+    @objc private func didTapTop()    { trailingTopTapHandler?() }
+    @objc private func didTapBottom() { trailingBottomTapHandler?() }
 
     private func showLead(_ visible: Bool) {
         leadWidth.constant = visible ? leadSize : 0

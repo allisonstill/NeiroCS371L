@@ -1,8 +1,15 @@
+//
+//  Playlist.swift
+//  NeiroCS371L
+//
+//  Created by Jacob Mathew on 10/21/25.
+//
+
 import UIKit
 
 final class PlaylistViewController: UITableViewController {
 
-    // Demo data (swap with Firebase later)
+    // Demo data (TODO: swap with Firebase later)
     var playlists: [Playlist] = [
         Playlist.demo,
         Playlist(title: "Late Night Lo-Fi", emoji: "😴",
@@ -89,17 +96,96 @@ final class PlaylistViewController: UITableViewController {
         let date = Self.df.string(from: p.createdAt)
         let info = "\(p.songCount) songs • \(p.formattedLength) • \(date)"
 
-        // Big emoji on the left, title + subtitle on the right
-        cell.configure(image: nil, emoji: p.emoji, title: p.title, subtitle: info)
+        let pencil = UIImage(systemName: "pencil")
+        let xmark  = UIImage(systemName: "xmark")
+
+        cell.configure(
+            image: nil,
+            emoji: p.emoji,
+            title: p.title,
+            subtitle: info,
+            trailingTopImage: pencil,
+            trailingTopTap: { [weak self, weak tableView, weak cell] in
+                guard let self,
+                      let tableView,
+                      let cell = cell,
+                      let tappedIndexPath = tableView.indexPath(for: cell) else { return }
+                self.changePlaylistName(at: tappedIndexPath)
+            },
+            trailingBottomImage: xmark,
+            trailingBottomTap: { [weak self, weak tableView, weak cell] in
+                guard let self,
+                      let tableView,
+                      let cell = cell,
+                      let tappedIndexPath = tableView.indexPath(for: cell) else { return }
+                self.deletePlaylist(at: tappedIndexPath)
+            }
+        )
         return cell
     }
 
+
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        // TODO: push a detail screen later
+        // Navigate to detail screen with the selected playlist
         let detailVC = PlaylistDetailViewController()
         detailVC.playlist = playlists[indexPath.row]
+        
+        // saving playlist to this table view
+        detailVC.onSave = { [weak self] updated in
+                guard let self else { return }
+                self.playlists[indexPath.row] = updated
+                self.tableView.reloadRows(at: [indexPath], with: .automatic)
+            }
+        
         navigationController?.pushViewController(detailVC, animated: true)
+    }
 
+    // MARK: TODO - firebase integration
+    func changePlaylistName(at indexPath: IndexPath) {
+        let current = playlists[indexPath.row]
+        let alert = UIAlertController(title: "Rename Playlist",
+                                      message: nil,
+                                      preferredStyle: .alert)
+        alert.addTextField { tf in
+            tf.placeholder = "Playlist name"
+            tf.text = current.title
+            tf.clearButtonMode = .whileEditing
+            tf.autocapitalizationType = .words
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
+        alert.addAction(UIAlertAction(title: "Save", style: .default, handler: { [weak self] _ in
+            guard let self else { return }
+            let newTitle = alert.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !newTitle.isEmpty, newTitle != current.title else { return }
+
+            // TODO: Firebase update later
+            // Local update for now:
+            self.playlists[indexPath.row].title = newTitle
+            self.tableView.reloadRows(at: [indexPath], with: .automatic)
+        }))
+        present(alert, animated: true)
+    }
+    
+    private func deletePlaylist(at indexPath: IndexPath) {
+        let playlist = playlists[indexPath.row]
+        let ac = UIAlertController(
+            title: "Delete \"\(playlist.title)\"?",
+            message: "This will remove the playlist from your list.",
+            preferredStyle: .alert
+        )
+        ac.addAction(UIAlertAction(title: "Delete", style: .destructive, handler: { [weak self] _ in
+            guard let self else { return }
+            self.playlists.remove(at: indexPath.row)
+            self.tableView.deleteRows(at: [indexPath], with: .automatic)
+            // TODO: also delete from Firebase when integrated
+        }))
+        ac.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        present(ac, animated: true)
+    }
+    
+    func addPlaylist(_ new: Playlist) {
+        playlists.insert(new, at: 0)
+        tableView.reloadData()
     }
 }

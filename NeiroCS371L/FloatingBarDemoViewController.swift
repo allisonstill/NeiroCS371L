@@ -13,6 +13,11 @@ final class FloatingBarDemoViewController: UIViewController {
     private let floatingBar = FloatingBar()
     private let content = UIView()          // where child screens live
     private var currentChild: UIViewController?
+    private lazy var homeVC      = SimplePlaceholderVC(title: "Home")
+    private lazy var playlistsVC = PlaylistViewController()
+    private lazy var groupVC     = SimplePlaceholderVC(title: "Group")
+    private lazy var profileVC   = SimplePlaceholderVC(title: "Profile")
+    private lazy var settingsVC = SettingsViewController()
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -31,7 +36,7 @@ final class FloatingBarDemoViewController: UIViewController {
         print("Current user:", Auth.auth().currentUser?.email ?? "nil")
 
         // Start on "Home" (placeholder)
-        showChild(SimplePlaceholderVC(title: "Home"))
+        showChild(self.homeVC)
         floatingBar.select(index: 0)
     }
 
@@ -132,26 +137,21 @@ final class FloatingBarDemoViewController: UIViewController {
             switch index {
             case 0:
                 self.floatingBar.select(index: 0)
-                self.showChild(SimplePlaceholderVC(title: "Home"))
+                self.showChild(self.homeVC)
             case 1:
                 self.floatingBar.select(index: 1)
-                let playlists = PlaylistViewController()
-                self.showChild(playlists)
+                self.showChild(self.playlistsVC)
             case 2:
                 self.floatingBar.select(index: 2)
-                self.showChild(SimplePlaceholderVC(title: "Group"))
+                self.showChild(self.groupVC)
             case 3:
                 self.floatingBar.select(index: 3)
-                self.showChild(SimplePlaceholderVC(title: "Profile"))
+                self.showChild(self.profileVC)
             case 4:
                 self.floatingBar.select(index: 4)
-                let settings = SettingsViewController()
-                self.showChild(settings)
-
-                // Option A: open Settings screen
-                // self.show(SettingsVC())
-                // Option B: quick action to log out from Settings
-            default: break
+                self.showChild(self.settingsVC)
+            default:
+                break
             }
         }
     }
@@ -170,9 +170,13 @@ private final class SimplePlaceholderVC: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = ThemeColor.Color.backgroundColor
-        label.text = title
+        if title != "Home" {
+            label.text = "COMING SOON!"
+        } else {
+            label.text = "Home"
+        }
         label.font = .systemFont(ofSize: 22, weight: .bold)
-        label.textColor = .secondaryLabel
+        label.textColor = .white
         label.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(label)
         NSLayoutConstraint.activate([
