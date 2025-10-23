@@ -1,20 +1,20 @@
 ## Contributions:
 
-#### Allison Still (_%):
-- 
-- 
+#### Allison Still (25%):
+- Login screen
+- Registration screen
 
-#### Jacob Mathew (_%):
-- 
-- 
+#### Jacob Mathew (25%):
+- Floating navigation bar
+- Playlist overview page
 
-#### Andy Osornio (_%):
-- 
-- 
+#### Andy Osornio (25%):
+- Emoji option segues
+- Detailed playlist look
 
-#### Ethan Yu (_%):
-- 
-- 
+#### Ethan Yu (25%):
+- Settings screen
+- Settings features (dark mode, excluded music, playlist length)
 
 
 ## Differences:
