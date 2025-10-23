@@ -33,20 +33,7 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
         setupScreen()
         passwordField.isSecureTextEntry = true
 
-        if demo {
-            // If there is a nav bar, put a bar button. Otherwise, add a floating button.
-            if navigationController != nil {
-                navigationItem.rightBarButtonItem = UIBarButtonItem(
-                    title: "Demo",
-                    style: .plain,
-                    target: self,
-                    action: #selector(fillDemo)
-                )
-            } else {
-                addFloatingDemoButton()
-            }
         }
-    }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
@@ -63,23 +50,6 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
     }
 
     @objc private func fillDemo() { demoCreds() }
-
-    private func addFloatingDemoButton() {
-        let b = UIButton(type: .system)
-        b.setTitle("Demo", for: .normal)
-        b.setTitleColor(.white, for: .normal)
-        b.backgroundColor = UIColor.systemBlue
-        b.layer.cornerRadius = 14
-        b.contentEdgeInsets = UIEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
-        b.addTarget(self, action: #selector(fillDemo), for: .touchUpInside)
-        view.addSubview(b)
-        b.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            b.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
-            b.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12)
-        ])
-        demoButton = b
-    }
 
     // MARK: - TextField / Touches
     func textFieldShouldReturn(_ textField:UITextField) -> Bool {

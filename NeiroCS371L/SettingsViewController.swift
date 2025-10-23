@@ -23,7 +23,7 @@ enum BackendData {
 
 // One-session memory for this screen
 private enum SessionStore {
-    static var appearanceStyle: String = "dark"
+    static var appearanceStyle: String = "light" // "dark" | "light"
     static var playlistMinutes: Int = 10
     static var avatarImage: UIImage?
     static var preferredGenres  = Set<String>()
@@ -287,6 +287,7 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
 
     // MARK: - Session I/O
     private func loadFromSession() {
+        // ["Dark","Light"] => 0: dark, 1: light
         appearanceSeg.selectedSegmentIndex = (SessionStore.appearanceStyle == "dark") ? 1 : 0
         applyAppearance(SessionStore.appearanceStyle)
 
@@ -318,30 +319,17 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
                                : "\(list.prefix(3).joined(separator: ", ")) … +\(list.count - 3)"
     }
 
-<<<<<<< Updated upstream
-    private func applyAppearance(_ style: String) {
-        let mode: UIUserInterfaceStyle = (style == "dark") ? .dark : .light
-        // Apply to the whole window if possible
-        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let window = (scene.delegate as? SceneDelegate)?.window {
-            window.overrideUserInterfaceStyle = mode
-        } else {
-            // Fallback: at least apply to this VC
-            overrideUserInterfaceStyle = mode
-        }
-=======
     private func refreshPickerSubtitles() {
         preferredGenresRow.setSubtitle(summaryText(for: preferredGenresList))
         preferredArtistsRow.setSubtitle(summaryText(for: preferredArtistsList))
         unwantedGenresRow.setSubtitle(summaryText(for: unwantedGenresList))
         unwantedArtistsRow.setSubtitle(summaryText(for: unwantedArtistsList))
->>>>>>> Stashed changes
     }
-
 
     // MARK: - Actions
     @objc private func appearanceChanged() {
-        let style = (appearanceSeg.selectedSegmentIndex == 0) ? "light" : "dark"
+        // ["Dark","Light"] => index 0 is dark
+        let style = (appearanceSeg.selectedSegmentIndex == 1) ? "dark" : "light"
         SessionStore.appearanceStyle = style
         applyAppearance(style)
     }
@@ -475,7 +463,7 @@ final class SearchableMultiPickerViewController: UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        // Use system backgrounds so text colors adapt correctly
+        // System backgrounds + dynamic label colors for readability in both modes
         view.backgroundColor = .systemBackground
         tableView.backgroundColor = .systemBackground
         tableView.rowHeight = 54
@@ -494,7 +482,7 @@ final class SearchableMultiPickerViewController: UITableViewController {
 
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             title: "Done",
-            style: .done,
+            style: .prominent,
             target: self,
             action: #selector(doneTapped)
         )
@@ -513,7 +501,7 @@ final class SearchableMultiPickerViewController: UITableViewController {
 
         var cfg = UIListContentConfiguration.cell()
         cfg.text = item
-        cfg.textProperties.color = .label            // <-- dark in light mode, light in dark mode
+        cfg.textProperties.color = .label
         cfg.secondaryText = selected.contains(item) ? "Selected" : nil
         cfg.secondaryTextProperties.color = .secondaryLabel
         cell.contentConfiguration = cfg
