@@ -97,5 +97,9 @@ final class PlaylistViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         // TODO: push a detail screen later
+        let detailVC = PlaylistDetailViewController()
+        detailVC.playlist = playlists[indexPath.row]
+        navigationController?.pushViewController(detailVC, animated: true)
+
     }
 }
