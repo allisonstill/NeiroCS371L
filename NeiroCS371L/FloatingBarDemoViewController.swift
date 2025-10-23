@@ -144,12 +144,9 @@ final class FloatingBarDemoViewController: UIViewController {
                 self.floatingBar.select(index: 3)
                 self.showChild(SimplePlaceholderVC(title: "Profile"))
             case 4:
-                print("Settings")
                 self.floatingBar.select(index: 4)
-                // Present Settings screen (full screen)
                 let settings = SettingsViewController()
-                settings.modalPresentationStyle = .fullScreen
-                self.present(settings, animated: false)
+                self.showChild(settings)
 
                 // Option A: open Settings screen
                 // self.show(SettingsVC())

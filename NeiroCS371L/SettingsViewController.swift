@@ -289,12 +289,17 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
     }
 
     private func applyAppearance(_ style: String) {
-        if style == "light" {
-            overrideUserInterfaceStyle = .light
+        let mode: UIUserInterfaceStyle = (style == "dark") ? .dark : .light
+        // Apply to the whole window if possible
+        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = (scene.delegate as? SceneDelegate)?.window {
+            window.overrideUserInterfaceStyle = mode
         } else {
-            overrideUserInterfaceStyle = .dark
+            // Fallback: at least apply to this VC
+            overrideUserInterfaceStyle = mode
         }
     }
+
 
     // MARK: - Actions
     @objc private func appearanceChanged() {
