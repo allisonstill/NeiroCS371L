@@ -131,7 +131,15 @@ final class CreatePlaylistViewController: UIViewController {
             return
         }
 
-        // Create a new empty playlist (songs can be added later)
+        // ✅ NEW: Check if emoji has a predefined hardcoded playlist
+        if let playlist = PlaylistLibrary.playlist(for: emoji) {
+            let detailVC = PlaylistDetailViewController()
+            detailVC.playlist = playlist
+            navigationController?.pushViewController(detailVC, animated: true)
+            return
+        }
+
+        // (Old behavior — fallback if no hardcoded playlist exists)
         let new = Playlist(title: "New \(emoji) Playlist",
                            emoji: emoji,
                            createdAt: Date(),
