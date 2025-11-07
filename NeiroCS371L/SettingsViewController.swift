@@ -48,6 +48,10 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
     private let usernameTitle = UILabel()
     private let usernameValue = UILabel()
     private let spotifyPill = UIButton(type: .system)
+    
+    //private let usernameLabel = UILabel()
+    //private let spotifyStatusLabel = UILabel()
+    //private let connectSpotifyButton = UIButton()
 
     private let appearanceCard = UIView()
     private let appearanceTitle = UILabel()
@@ -82,6 +86,12 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         buildActions()
         loadFromSession()
         populateUser()
+        checkSpotifyConnection()
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        checkSpotifyConnection()
     }
 
     // MARK: - Build UI
@@ -166,13 +176,14 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         nameRow.addArrangedSubview(usernameValue)
 
         var pillCfg = UIButton.Configuration.filled()
-        pillCfg.title = "Spotify Account Connected"
-        pillCfg.baseBackgroundColor = UIColor.systemGreen.withAlphaComponent(0.9)
+        pillCfg.title = "Spotify Not Connected"
+        pillCfg.baseBackgroundColor = UIColor.systemRed.withAlphaComponent(0.9)
         pillCfg.baseForegroundColor = .white
         pillCfg.cornerStyle = .capsule
         pillCfg.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 18, bottom: 10, trailing: 18)
         spotifyPill.configuration = pillCfg
-        spotifyPill.isUserInteractionEnabled = false
+        spotifyPill.isUserInteractionEnabled = true
+        spotifyPill.addTarget(self, action: #selector(connectSpotifyTapped), for: .touchUpInside)
 
         let rightStack = UIStackView(arrangedSubviews: [nameRow, spotifyPill, changePhotoButton])
         rightStack.axis = .vertical
@@ -190,6 +201,25 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
             profileRow.trailingAnchor.constraint(equalTo: profileCard.trailingAnchor, constant: -16),
             profileRow.bottomAnchor.constraint(equalTo: profileCard.bottomAnchor, constant: -16)
         ])
+    }
+    
+    private func checkSpotifyConnection() {
+        if SpotifyUserAuthorization.shared.isConnected {
+            var pillCfg = spotifyPill.configuration
+            pillCfg?.title = "Spotify Connected"
+            pillCfg?.baseBackgroundColor = UIColor.systemGreen.withAlphaComponent(0.9)
+            spotifyPill.configuration = pillCfg
+
+            if let spotifyName = SpotifyUserAuthorization.shared.userDisplayName {
+                usernameValue.text = spotifyName
+            }
+        } else {
+            
+            var pillCfg = spotifyPill.configuration
+            pillCfg?.title = "Connect Spotify"
+            pillCfg?.baseBackgroundColor = UIColor.systemRed.withAlphaComponent(0.9)
+            spotifyPill.configuration = pillCfg
+        }
     }
 
     private func buildAppearance() {
@@ -346,6 +376,7 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
     @objc private func signOutTapped() {
         do {
             try Auth.auth().signOut()
+            SpotifyUserAuthorization.shared.disconnect()
             if
                 let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
                 let delegate = scene.delegate as? SceneDelegate {
@@ -361,6 +392,30 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         picker.sourceType = .photoLibrary
         picker.delegate = self
         present(picker, animated: true)
+    }
+    
+    @objc private func connectSpotifyTapped() {
+        if SpotifyUserAuthorization.shared.isConnected {
+            let alert = UIAlertController(
+                title: "Disconnect Spotify?",
+                message: "You will no longer be able to export playlists to Spotify",
+                preferredStyle: .alert
+            )
+            
+            alert.addAction(UIAlertAction(title: "Disconnect", style: .destructive) { _ in
+                SpotifyUserAuthorization.shared.disconnect()
+                self.checkSpotifyConnection()
+            })
+            
+            alert.addAction(UIAlertAction(title: "Cancel", style:.cancel))
+            
+            present(alert, animated: true)
+        } else {
+            SpotifyUserAuthorization.shared.startLogin(presentingVC: self, forSignup: false) { [weak self] safari in
+                if safari == nil {
+                    self?.showAlert(title: "Error", message: "Failed to start Spotify login")
+                }}
+        }
     }
 
     // MARK: - UIImagePickerControllerDelegate
@@ -438,6 +493,14 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         let user = Auth.auth().currentUser
         let display = user?.displayName ?? user?.email ?? "username"
         usernameValue.text = display
+    }
+    
+    //helper function to show alerts
+    private func showAlert(title: String, message: String) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        let action = UIAlertAction(title: "OK", style: .default)
+        alert.addAction(action)
+        present(alert, animated: true)
     }
 }
 

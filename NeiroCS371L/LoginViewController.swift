@@ -28,12 +28,11 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
         emailField.autocapitalizationType = .none
         passwordField.delegate = self
         passwordField.autocapitalizationType = .none
+        passwordField.isSecureTextEntry = true
 
         view.backgroundColor = ThemeColor.Color.backgroundColor
         setupScreen()
-        passwordField.isSecureTextEntry = true
-
-        }
+    }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
@@ -51,7 +50,6 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
 
     @objc private func fillDemo() { demoCreds() }
 
-    // MARK: - TextField / Touches
     func textFieldShouldReturn(_ textField:UITextField) -> Bool {
         textField.resignFirstResponder(); return true
     }
@@ -153,15 +151,30 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
     @objc private func handleLogin() {
         guard let email = emailField.text, !email.isEmpty,
               let password = passwordField.text, !password.isEmpty else {
-            print("Not all inputs are complete.")
+            showAlert(title: "Missing fields", message: "Please fill in all fields.")
             return
         }
+        
+        guard email.contains("@") && email.contains(".") else {
+            showAlert(title: "Invalid Email", message: "Please enter a valid email.")
+            return
+        }
+        
+        loginButton.isEnabled = false
+        loginButton.setTitle("Logging in...", for: .normal)
 
-        Auth.auth().signIn(withEmail: email, password: password) { _, error in
+        Auth.auth().signIn(withEmail: email, password: password) { [weak self] result, error in
+            
+            DispatchQueue.main.async {
+                self?.loginButton.isEnabled = true
+                self?.loginButton.setTitle("Login", for: .normal)
+            }
+            
             if let error = error {
-                print("Login error: \(error.localizedDescription)")
+                self?.handleLoginError(error)
                 return
             }
+            print("Login success!")
             DispatchQueue.main.async {
                 if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
                    let delegate = scene.delegate as? SceneDelegate {
@@ -169,5 +182,36 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
                 }
             }
         }
+    }
+    
+    private func handleLoginError(_ error: Error) {
+        let nsError = error as NSError
+        if let errorCode = AuthErrorCode(rawValue: nsError.code) {
+            switch errorCode {
+            case .wrongPassword:
+                showAlert(title: "Incorrect Password", message: "The password you entered is incorrect. Please try again.")
+            case .userNotFound:
+                showAlert(title: "User Not Found", message: "No user was found with that email. Would you like to sign up?", showSignUp: true)
+            case .invalidEmail:
+                showAlert(title: "Invalid Email", message: "The email you entered is invalid. Please try again.")
+            default:
+                showAlert(title: "Login Failed", message: "\(error.localizedDescription)")
+            
+            }
+        }
+    }
+    
+    private func showAlert(title: String, message: String, showSignUp: Bool = false) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        
+        if showSignUp {
+            alert.addAction(UIAlertAction(title: "Sign Up", style: .default) { [weak self] _ in
+                self?.handleSignUp()
+            })
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        } else {
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+        }
+        present(alert, animated: true)
     }
 }

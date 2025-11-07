@@ -21,7 +21,49 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         }
 
         window.makeKeyAndVisible()
+        
+        if let urlContext = connectionOptions.urlContexts.first {
+            self.scene(scene, openURLContexts: Set([urlContext]))
+        }
     }
+    
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        guard let url = URLContexts.first?.url else { return }
+        
+        print("Received this url: \(url.absoluteString) within Scene Delegate")
+        
+        //check if we got a Spotify callback url
+        if url.scheme == "neiro" && url.host == "spotify-callback" {
+            //TODO
+            SpotifyUserAuthorization.shared.handleCallback(url: url) { success in
+                
+                DispatchQueue.main.async {
+                    if success {
+                        print("Spotify authentication successful!!")
+                        
+                        //notify observers (signupVC, settingsVC)
+                        NotificationCenter.default.post(
+                            name: Notification.Name("spotifyAuthSuccess"),
+                            object: nil
+                        )
+                        
+                        //if during sign up, go to main app
+                        if Auth.auth().currentUser != nil {
+                            self.showMainApp(animated: true)
+                        }
+                    } else {
+                        print("Spotify authentication failed")
+                        NotificationCenter.default.post(
+                            name: Notification.Name("spotifyAuthFailed"),
+                            object: nil
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    
 
     // MARK: - Routing helpers
 
