@@ -13,23 +13,34 @@ final class PlaylistDetailViewController: UIViewController {
     var playlist: Playlist!
     var onSave: ((Playlist) -> Void)?
     private var tableView = UITableView()
-    private var player: AVAudioPlayer?
+    private var player: AVPlayer?
     private var currentlyPlayingIndex: IndexPath?
     private let saveButton = UIButton(type: .system)
     var isNewPlaylist: Bool = false
     private var tableBottomConstraint: NSLayoutConstraint!
+    
+    private let exportButton = UIButton(type: .system)
+    private let activityIndicator = UIActivityIndicatorView(style: .medium)
+    private var playbackObserver: Any?
 
     override func viewDidLoad() {
         super.viewDidLoad()
         title = playlist.title
         view.backgroundColor = ThemeColor.Color.backgroundColor
         configureTableView()
+        configureExportButton()
         if isNewPlaylist {
                     configureSaveButton()
                     tableBottomConstraint.constant = -80 // leave space for the button
                 } else {
                     tableBottomConstraint.constant = 0   // no button, table goes to bottom
                 }
+        
+        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .action, target: self, action: #selector(shareTapped))
+        
+        if isNewPlaylist{
+            showNewPlaylistAlert()
+        }
     }
 
     private func configureTableView() {
@@ -51,6 +62,56 @@ final class PlaylistDetailViewController: UIViewController {
         ])
     }
     
+    private func configureExportButton() {
+        //only show if connected to spotify
+        guard SpotifyUserAuthorization.shared.isConnected else { return }
+        
+        exportButton.translatesAutoresizingMaskIntoConstraints = false
+        exportButton.setTitle("Export to Spotify", for: .normal)
+        exportButton.setImage(UIImage(systemName: "square.and.arrow.up"), for: .normal)
+        exportButton.titleLabel?.font = .systemFont(ofSize: 16, weight: .semibold)
+        exportButton.setTitleColor(.white, for: .normal)
+        exportButton.backgroundColor = .systemGreen
+        exportButton.layer.cornerRadius = 12
+        exportButton.contentEdgeInsets = UIEdgeInsets(top: 10, left: 16, bottom: 10, right: 16)
+        exportButton.addTarget(self, action: #selector(exportTapped), for: .touchUpInside)
+        
+        if #available(iOS 15.0, *) {
+            var config = UIButton.Configuration.filled()
+            config.title = "Export to Spotify"
+            config.image = UIImage(systemName: "square.and.arrow.up")
+            config.baseBackgroundColor = .systemGreen
+            config.baseForegroundColor = .white
+            config.cornerStyle = .medium
+            config.imagePlacement = .leading
+            config.imagePadding = 8
+            config.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16)
+            exportButton.configuration = config
+        }
+        
+        activityIndicator.translatesAutoresizingMaskIntoConstraints = false
+        activityIndicator.hidesWhenStopped = true
+        activityIndicator.color = .white
+        exportButton.addSubview(activityIndicator)
+        
+        view.addSubview(exportButton)
+        
+        NSLayoutConstraint.activate([
+            exportButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+            exportButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            exportButton.heightAnchor.constraint(equalToConstant: 44),
+            
+            activityIndicator.centerXAnchor.constraint(equalTo: exportButton.centerXAnchor),
+            activityIndicator.centerYAnchor.constraint(equalTo: exportButton.centerYAnchor)
+        ])
+        
+        if let topConstraint = tableView.constraints.first(where: {$0.firstAnchor == tableView.topAnchor}) {
+            topConstraint.isActive = false
+        }
+        
+        tableView.topAnchor.constraint(equalTo: exportButton.bottomAnchor, constant: 8).isActive = true
+    }
+    
     private func configureSaveButton() {
             saveButton.translatesAutoresizingMaskIntoConstraints = false
             saveButton.setTitle("Save Playlist", for: .normal)
@@ -70,16 +131,46 @@ final class PlaylistDetailViewController: UIViewController {
         }
 
     // MARK: - Playback
+    //TODO: Not sure if the play snippets are working yet
     private func playSnippet(for song: Song, at indexPath: IndexPath) {
         // Toggle off if already playing this row
         if currentlyPlayingIndex == indexPath {
-            player?.stop()
-            currentlyPlayingIndex = nil
-            tableView.reloadRows(at: [indexPath], with: .none)
+            stopPlayback()
             return
         }
+        
+        stopPlayback()
+        
+        //search for song on Spotify by title and artist
+        let query = "\(song.title) \(song.artist ?? "")"
+        
+        SpotifyAPI.shared.searchTracks(query: query, limit: 1) { [weak self] result in
+            
+            guard let self = self else {return}
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let tracks):
+                    if let track = tracks.first, let previewURL = track.preview_url, let url = URL(string: previewURL) {
+                        
+                        self.player = AVPlayer(url: url)
+                        self.currentlyPlayingIndex = indexPath
+                        self.tableView.reloadRows(at: [indexPath], with: .none)
+                        
+                        self.observePlaybackEnd()
+                        self.player?.play()
+                    } else {
+                        self.playMockSound(for: song, at: indexPath)
+                    }
+                case .failure:
+                    self.playMockSound(for: song, at: indexPath)
+                }
+            }
+            
+        }
 
-        // Use a mock sound for now
+    }
+    
+    private func playMockSound(for song: Song, at indexPath: IndexPath) {
         guard let soundURL = Bundle.main.url(forResource: "click", withExtension: "wav") else {
             print("Simulating playback for \(song.title)")
             currentlyPlayingIndex = indexPath
@@ -90,14 +181,56 @@ final class PlaylistDetailViewController: UIViewController {
             }
             return
         }
-
-        do {
-            player = try AVAudioPlayer(contentsOf: soundURL)
-            player?.play()
-            currentlyPlayingIndex = indexPath
-            tableView.reloadData()
-        } catch {
-            print("Couldn’t play snippet:", error)
+        
+        player = AVPlayer(url: soundURL)
+        currentlyPlayingIndex = indexPath
+        tableView.reloadData()
+        
+        observePlaybackEnd()
+        player?.play()
+    }
+    
+    @objc private func playerDidFinishPlaying() {
+        currentlyPlayingIndex = nil
+        tableView.reloadData()
+    }
+    
+    private func observePlaybackEnd() {
+        guard let player = player, let currentItem = player.currentItem else {return}
+        
+        if let observer = playbackObserver {
+            NotificationCenter.default.removeObserver(observer)
+            playbackObserver = nil
+        }
+        
+        playbackObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: currentItem, queue: .main) { [weak self] _ in
+            self?.handlePlaybackEnd()
+        }
+    }
+    
+    private func stopPlayback() {
+        player?.pause()
+        player = nil
+        if let observer = playbackObserver {
+            NotificationCenter.default.removeObserver(observer)
+            playbackObserver = nil
+        }
+        
+        if let index = currentlyPlayingIndex {
+            currentlyPlayingIndex = nil
+            tableView.reloadRows(at: [index], with: .none)
+        }
+    }
+    
+    private func handlePlaybackEnd() {
+        if let index = currentlyPlayingIndex {
+            currentlyPlayingIndex = nil
+            tableView.reloadRows(at: [index], with: .none)
+        }
+        
+        if let observer = playbackObserver {
+            NotificationCenter.default.removeObserver(observer)
+            playbackObserver = nil
         }
     }
     
@@ -128,7 +261,81 @@ final class PlaylistDetailViewController: UIViewController {
         // 3) Fallback: just pop one level
         nav.popViewController(animated: true)
     }
-
+    
+    @objc private func exportTapped() {
+        guard SpotifyUserAuthorization.shared.isConnected else {
+            showAlert(title: "Not Connected", message: "Please connect Spotify account")
+            return
+        }
+        
+        let alert = UIAlertController(title: "Export to Spotify", message: "This will create a new playlist in your Spotify account.", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Export", style: .default) { [weak self] _  in
+            
+            self?.performExport()
+        })
+        
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        present(alert, animated: true)
+    }
+    
+    private func performExport() {
+        exportButton.isEnabled = false
+        activityIndicator.startAnimating()
+        
+        SpotifyAPI.shared.exportPlaylist(playlist: playlist) { [weak self] result in
+            
+            DispatchQueue.main.async {
+                self?.exportButton.isEnabled = true
+                self?.activityIndicator.stopAnimating()
+                
+                switch result{
+                case .success(let url):
+                    self?.showExportSuccess(url: url)
+                    
+                case .failure(let error):
+                    self?.showAlert(title: "Export failed", message: error.localizedDescription)
+                }
+            }
+        }
+    }
+    
+    private func showExportSuccess(url: String) {
+        let alert = UIAlertController(title: "Success", message: "Playlist was exported to Spotify", preferredStyle: .alert)
+        
+        alert.addAction(UIAlertAction(title: "Open in Spotify", style: .default) { _  in
+            if let spotifyURL = URL(string: url) {
+                UIApplication.shared.open(spotifyURL)
+            }
+        })
+        
+        alert.addAction(UIAlertAction(title: "OK", style: .cancel))
+        present(alert, animated: true)
+    }
+    
+    @objc private func shareTapped() {
+        let text = "\(playlist.emoji) \(playlist.title) \n \(playlist.songCount) songs in total."
+        
+        let activityVC = UIActivityViewController(activityItems: [text], applicationActivities: nil)
+        
+        present(activityVC, animated: true)
+        
+    }
+    
+    private func showNewPlaylistAlert() {
+        let alert = UIAlertController(title: "Playlist Created", message: "Your new playlist is ready!", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Got it!", style: .default))
+        present(alert, animated: true)
+    }
+    
+    private func showAlert(title: String, message: String) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
+    
+    deinit {
+        stopPlayback()
+    }
 
 }
 
@@ -154,6 +361,21 @@ extension PlaylistDetailViewController: UITableViewDataSource, UITableViewDelega
 
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
         80
+    }
+    
+    func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+        let deleteAction = UIContextualAction(style: .destructive, title: "Remove") { [weak self] _, _, completion in
+            
+            self?.removeSong(at: indexPath)
+            completion(true)
+        }
+        return UISwipeActionsConfiguration(actions: [deleteAction])
+    }
+    
+    private func removeSong(at indexPath: IndexPath) {
+        let song = playlist.songs[indexPath.row]
+        playlist.removeSong(byID: song.id)
+        tableView.deleteRows(at: [indexPath], with: .fade)
     }
 }
 

@@ -19,6 +19,9 @@ final class CreatePlaylistViewController: UIViewController {
                             "🔥","❤️","⚡️","➕"]
 
     private var collectionView: UICollectionView!
+    
+    private let activityIndicator = UIActivityIndicatorView(style: .large)
+    private var selectedEmoji: String?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -26,6 +29,12 @@ final class CreatePlaylistViewController: UIViewController {
         view.backgroundColor = ThemeColor.Color.backgroundColor
         setupCollection()
         setupButtons()
+        setupActivityIndicator()
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        checkSpotifyConnection()
     }
 
     private func setupCollection() {
@@ -70,6 +79,18 @@ final class CreatePlaylistViewController: UIViewController {
             stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16)
         ])
     }
+    
+    private func setupActivityIndicator() {
+        activityIndicator.translatesAutoresizingMaskIntoConstraints = false
+        activityIndicator.hidesWhenStopped = true
+        view.addSubview(activityIndicator)
+        
+        NSLayoutConstraint.activate([
+            activityIndicator.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            activityIndicator.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+        ])
+        
+    }
 
     private func primaryButton(_ title: String) -> UIButton {
         let button = UIButton(type: .system)
@@ -110,10 +131,20 @@ final class CreatePlaylistViewController: UIViewController {
         }
         return b
     }
+    
+    private func checkSpotifyConnection() {
+        if !SpotifyUserAuthorization.shared.isConnected {
+            let alert = UIAlertController(title: "Connect Spotify", message: "To generate playlists, please connect Spotify account!", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+        }
+    }
 
     // MARK: Actions
     @objc private func randomTapped() {
-        if let random = emojis.randomElement() {
+        if let random = emojis.filter({ $0 != "➕" }).randomElement() {
+            selectedEmoji = random
+            collectionView.reloadData()
             handleEmojiSelection(random)
         }
     }
@@ -126,21 +157,106 @@ final class CreatePlaylistViewController: UIViewController {
     }
 
     private func handleEmojiSelection(_ emoji: String) {
-        if let playlist = PlaylistLibrary.playlist(for: emoji) {
+        
+        guard emoji != "➕" else {
+            let ac = UIAlertController(title: "Coming Soon", message: "This is coming soon!", preferredStyle: .alert)
+            ac.addAction(UIAlertAction(title: "OK", style: .cancel))
+            present(ac, animated: true)
+            return
+        }
+        
+        let existingPlaylists = PlaylistLibrary.playlists(for: emoji)
+        if let existing = existingPlaylists.first {
             let detailVC = PlaylistDetailViewController()
-            detailVC.playlist = playlist
+            detailVC.playlist = existing
             detailVC.isNewPlaylist = true
             navigationController?.pushViewController(detailVC, animated: true)
             return
         }
 
-        // Otherwise create a new one
-        let new = Playlist(title: "New \(emoji) Playlist",
-                           emoji: emoji,
-                           createdAt: Date(),
-                           songs: [])
-        onCreate?(new)
-        navigationController?.popViewController(animated: true)
+        generatePlaylistFromSpotify(for: emoji)
+    }
+    
+    private func generatePlaylistFromSpotify(for emoji: String) {
+        guard SpotifyUserAuthorization.shared.isConnected else {
+            let alert = UIAlertController(title: "Not Connected", message: "Please connect Spotify account", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated:true)
+            return
+        }
+        
+        activityIndicator.startAnimating()
+        view.isUserInteractionEnabled = false
+        
+        // get settings from Spotify Settings
+        let settings = SpotifySettings.shared
+        let targetCount = settings.playlistLength.songCount
+        let excludedGenres = settings.excludedGenres
+        
+        SpotifyAPI.shared.generatePlaylist(for: emoji, targetSongCount: targetCount, excludedGenres: excludedGenres) { [weak self] result in
+            DispatchQueue.main.async {
+                self?.activityIndicator.stopAnimating()
+                self?.view.isUserInteractionEnabled = true
+                
+                switch result {
+                case .success(let songs):
+                    self?.createAndShowPlaylist(emoji: emoji, songs: songs)
+                    
+                case .failure(let error):
+                    self?.showAlert(title: "Error", message: "Didn't generate playlist: \(error.localizedDescription)"
+                    )
+                }
+            }
+        }
+    }
+    
+    private func createAndShowPlaylist(emoji: String, songs: [Song]) {
+        let playlistName = getPlaylistName(for: emoji)
+        let playlist = Playlist(title: playlistName, emoji: emoji, createdAt: Date(), songs: songs)
+        
+        PlaylistLibrary.addPlaylist(playlist)
+        onCreate?(playlist)
+        
+        let detailVC = PlaylistDetailViewController()
+        detailVC.playlist = playlist
+        detailVC.isNewPlaylist = true
+        navigationController?.pushViewController(detailVC, animated: true)
+        
+        if SpotifySettings.shared.autoExportToSpotify {
+            exportToSpotify(playlist: playlist)
+        }
+        
+    }
+    
+    //TODO: generate playlist names based on the emoji
+    private func getPlaylistName(for emoji: String) -> String {
+        switch emoji {
+        default: return "New \(emoji) Playlist"
+        }
+    }
+    
+    private func exportToSpotify(playlist: Playlist) {
+        activityIndicator.startAnimating()
+        
+        SpotifyAPI.shared.exportPlaylist(playlist: playlist) { [weak self] result in
+            
+            DispatchQueue.main.async {
+                self?.activityIndicator.stopAnimating()
+                
+                switch result {
+                case .success(let url):
+                    print("Playlist exported to \(url)")
+                case .failure(let error):
+                    print("Export failed: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+    
+    private func showAlert(title: String, message: String) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
     }
 }
 
@@ -151,7 +267,8 @@ extension CreatePlaylistViewController: UICollectionViewDelegateFlowLayout, UICo
     func collectionView(_ collectionView: UICollectionView,
                         cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "EmojiCell", for: indexPath) as! EmojiCell
-        cell.configure(emojis[indexPath.item])
+        let emoji = emojis[indexPath.item]
+        cell.configure(emoji, isSelected: emoji == selectedEmoji)
         return cell
     }
 
@@ -166,6 +283,8 @@ extension CreatePlaylistViewController: UICollectionViewDelegateFlowLayout, UICo
 
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         let emoji = emojis[indexPath.item]
+        selectedEmoji = emoji
+        collectionView.reloadData()
         handleEmojiSelection(emoji)
     }
 }
@@ -191,7 +310,14 @@ final class EmojiCell: UICollectionViewCell {
 
     required init?(coder: NSCoder) { super.init(coder: coder) }
 
-    func configure(_ emoji: String) {
+    func configure(_ emoji: String, isSelected: Bool = false) {
         label.text = emoji
+        if isSelected {
+            contentView.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.2)
+            contentView.layer.borderColor = UIColor.systemBlue.cgColor
+        } else {
+            contentView.backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.7)
+            contentView.layer.borderColor = UIColor.clear.cgColor
+        }
     }
 }
