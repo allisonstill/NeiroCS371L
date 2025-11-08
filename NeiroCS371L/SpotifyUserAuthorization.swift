@@ -259,6 +259,7 @@ class SpotifyUserAuthorization {
     private func createNewFirebaseAccount(email: String, spotifyID: String, displayName: String, completion: @escaping (Bool) -> Void) {
         
         let password = generateSecurePassword()
+        print("Attempting to create Firebase account for \(email)")
         
         Auth.auth().createUser(withEmail: email, password: password) { result, error in
             
@@ -293,6 +294,9 @@ class SpotifyUserAuthorization {
                     
                 } else {
                     print("Firebase account creation didn't work: \(error.localizedDescription)")
+                    DispatchQueue.main.async {
+                        self.showGeneralAuthError(error: error)
+                    }
                     completion(false)
                 }
             } else {
@@ -309,15 +313,58 @@ class SpotifyUserAuthorization {
         
         let alert = UIAlertController(title: "Account Already Exists", message: "An account with this email already exists. Please use original password.", preferredStyle: .alert)
         
-        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
-            Auth.auth().sendPasswordReset(withEmail: email) { error in
-                if let error = error {
-                    print("Pasword reset failed: \(error.localizedDescription)")
-                } else {
-                    print("Password reset email sent!")
-                }
+        alert.addAction(UIAlertAction(title: "Send Password Reset Email", style: .default) { _ in
+            self.sendPasswordResetEmail(email: email, presentingVC: topVC)
+        })
+        
+        alert.addAction(UIAlertAction(title: "Use Different Account", style: .default) { _ in
+            DispatchQueue.main.async {
+                self.showDifferentAccountInfo(presentingVC: topVC)
             }
         })
+        
+        alert.addAction(UIAlertAction(title: "Cancel", style:.cancel))
+
+        topVC.present(alert, animated: true)
+    }
+    
+    private func sendPasswordResetEmail(email: String, presentingVC: UIViewController) {
+        let loadingAlert = UIAlertController(title: "Sending email...", message: "Please wait for just a moment", preferredStyle: .alert)
+        presentingVC.present(loadingAlert, animated: true)
+        
+        Auth.auth().sendPasswordReset(withEmail: email) { error in
+            DispatchQueue.main.async {
+                loadingAlert.dismiss(animated: true)
+                if let error = error {
+                    print("Password reset failed! \(error.localizedDescription)")
+                    let errorAlert = UIAlertController(title: "Password Reset Failed", message: "We couldn't send the password reset email. Please try again later.", preferredStyle: .alert)
+                    errorAlert.addAction(UIAlertAction(title: "Retry", style: .default) { _ in
+                        self.sendPasswordResetEmail(email: email, presentingVC: presentingVC)
+                    })
+                    errorAlert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+                    presentingVC.present(errorAlert, animated: true)
+                } else {
+                    print("Password reset email sent!")
+                    let successAlert = UIAlertController(title: "Please Check your Email", message: "We have sent a password reset email to your inbox.", preferredStyle: .alert)
+                    successAlert.addAction(UIAlertAction(title: "OK", style: .default))
+                    presentingVC.present(successAlert, animated: true)
+                    
+                }
+            }
+        }
+    }
+    
+    private func showDifferentAccountInfo(presentingVC: UIViewController) {
+        let infoAlert = UIAlertController(title: "Use a Different Spotify Account", message: "Please attempt to log in to a different spotify account.", preferredStyle: .alert)
+        infoAlert.addAction(UIAlertAction(title: "OK", style: .default))
+        presentingVC.present(infoAlert, animated: true)
+    }
+    
+    
+    private func showGeneralAuthError(error: Error) {
+        guard let topVC = UIApplication.shared.windows.first?.rootViewController else { return }
+        let alert = UIAlertController(title: "Authentication Error", message: "We encountered an issue signing you in: \(error.localizedDescription)", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
         topVC.present(alert, animated: true)
     }
     

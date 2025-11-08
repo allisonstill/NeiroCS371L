@@ -15,6 +15,7 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
     private let emailField = UITextField()
     private let passwordField = UITextField()
     private let loginButton = UIButton(type: .system)
+    private let forgotPasswordButton = UIButton(type: .system)
     private let orLabel = UILabel()
     private let spotifyLoginButton = UIButton(type: .system)
     private let newUserLabel = UILabel()
@@ -104,6 +105,12 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
         loginButton.addTarget(self, action: #selector(handleLogin), for: .touchUpInside)
         view.addSubview(loginButton)
         
+        forgotPasswordButton.setTitle("Forgot Password?", for: .normal)
+        forgotPasswordButton.setTitleColor(ThemeColor.Color.titleColor.withAlphaComponent(0.8), for: .normal)
+        forgotPasswordButton.titleLabel?.font = ThemeColor.Font.bodyAuthFont().withSize(16)
+        forgotPasswordButton.addTarget(self, action: #selector(handleForgotPassword), for: .touchUpInside)
+        view.addSubview(forgotPasswordButton)
+        
         orLabel.text = "or"
         orLabel.font = ThemeColor.Font.bodyAuthFont()
         orLabel.textColor = ThemeColor.Color.textColor
@@ -169,6 +176,8 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
         emailField.frame = CGRect(x: fieldX, y: emailY, width: fieldWidth, height: fieldHeight)
         let passY = emailField.frame.maxY + spaceFields
         passwordField.frame = CGRect(x: fieldX, y: passY, width: fieldWidth, height: fieldHeight)
+        
+        
         let loginY = passwordField.frame.maxY + spaceFieldsLogin
         loginButton.frame = CGRect(x: buttonX, y: loginY, width: buttonWidth, height: buttonHeight)
         
@@ -177,6 +186,10 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
         
         let spotifyY = orLabel.frame.maxY + 20
         spotifyLoginButton.frame = CGRect(x: buttonX, y: spotifyY, width: buttonWidth, height: buttonHeight)
+        
+        forgotPasswordButton.sizeToFit()
+        let forgotY = spotifyLoginButton.frame.maxY + 18
+        forgotPasswordButton.frame = CGRect(x: buttonX +  forgotPasswordButton.frame.width / 3, y: forgotY, width: forgotPasswordButton.bounds.width, height: forgotPasswordButton.bounds.height)
 
         newUserLabel.sizeToFit()
         let signUpY = view.bounds.height - bottomPadding - buttonHeight
@@ -205,6 +218,19 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
                 }
             }
         }
+    }
+    
+    @objc private func handleForgotPassword() {
+        guard let email = emailField.text, !email.isEmpty else {
+            showAlert(title: "Email Required", message: "Please enter your email above.")
+            return
+        }
+        
+        guard email.contains("@") && email.contains(".") else {
+            showAlert(title: "Invalid Email", message: "Please enter a valid email.")
+            return
+        }
+        sendPasswordReset(email: email)
     }
 
     @objc private func handleLogin() {
@@ -272,5 +298,22 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
             alert.addAction(UIAlertAction(title: "OK", style: .default))
         }
         present(alert, animated: true)
+    }
+    
+    private func sendPasswordReset(email: String) {
+        let loadingAlert = UIAlertController(title: "Sending Reset Email...", message: "Please wait", preferredStyle: .alert)
+        present(loadingAlert, animated: true)
+        
+        Auth.auth().sendPasswordReset(withEmail: email) { [weak self] error in
+            DispatchQueue.main.async {
+                loadingAlert.dismiss(animated: true) {
+                    if let error = error {
+                        self?.showAlert(title: "Reset Failed", message: "Unable to send password reset email: \(error.localizedDescription)")
+                    } else {
+                        self?.showAlert(title: "Check your Email", message: "A password reset email has been sent to your inbox.")
+                    }
+                }
+            }
+        }
     }
 }
