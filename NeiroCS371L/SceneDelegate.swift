@@ -15,7 +15,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         self.window = window
 
         if Auth.auth().currentUser != nil {
-            showMainApp(animated: false)
+            //showMainApp(animated: false)
+            loadUserPlaylistsAndShowMainApp(animated: false)
         } else {
             showAuth(animated: false)
         }
@@ -68,6 +69,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     // MARK: - Routing helpers
 
     func showAuth(animated: Bool = true) {
+        PlaylistLibrary.clearLocal()
         let root = LoginViewController()
         //let root = SignUpViewController()
         // If you want a nav bar during auth, wrap in a UINavigationController too:
@@ -77,22 +79,66 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     func showMainApp(animated: Bool = true) {
-        let root = FloatingBarDemoViewController()
-        let nav = UINavigationController(rootViewController: root)
+        loadUserPlaylistsAndShowMainApp(animated: animated)
+    }
+    
+    private func loadUserPlaylistsAndShowMainApp(animated: Bool = true) {
+        if let window = self.window {
+            let loadingVC = UIViewController()
+            loadingVC.view.backgroundColor = ThemeColor.Color.backgroundColor
+            
+            let activityIndicator = UIActivityIndicatorView(style: .large)
+            activityIndicator.color = .white
+            activityIndicator.translatesAutoresizingMaskIntoConstraints = false
+            activityIndicator.startAnimating()
+            loadingVC.view.addSubview(activityIndicator)
+            
+            NSLayoutConstraint.activate([
+                activityIndicator.centerXAnchor.constraint(equalTo: loadingVC.view.centerXAnchor),
+                activityIndicator.centerYAnchor.constraint(equalTo: loadingVC.view.centerYAnchor)
+            ])
+            
+            let label = UILabel()
+            label.text = "Loading your playlists..."
+            label.textColor = .white
+            label.font = .systemFont(ofSize: 16)
+            label.translatesAutoresizingMaskIntoConstraints = false
+            loadingVC.view.addSubview(label)
+            
+            NSLayoutConstraint.activate([
+                label.centerXAnchor.constraint(equalTo: loadingVC.view.centerXAnchor),
+                label.topAnchor.constraint(equalTo: activityIndicator.bottomAnchor, constant: 20)
+            ])
+            
+            setRootViewController(loadingVC, animated: false)
+        }
+        
+        PlaylistLibrary.loadPlaylists { success in
+            DispatchQueue.main.async {
+                if success {
+                    print("Playlists loaded!")
+                } else {
+                    print("Failed to load playlists.")
+                }
+                
+                let root = FloatingBarDemoViewController()
+                let nav = UINavigationController(rootViewController: root)
+                
+                let appearance = UINavigationBarAppearance()
+                appearance.configureWithOpaqueBackground()
+                appearance.backgroundColor = ThemeColor.Color.backgroundColor
+                appearance.titleTextAttributes = [.foregroundColor: UIColor.white]
+                appearance.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
 
-        let appearance = UINavigationBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = ThemeColor.Color.backgroundColor
-        appearance.titleTextAttributes = [.foregroundColor: UIColor.white]
-        appearance.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
+                nav.navigationBar.standardAppearance = appearance
+                nav.navigationBar.scrollEdgeAppearance = appearance
+                nav.navigationBar.compactAppearance = appearance
+                nav.navigationBar.tintColor = .white // <- back button & bar items
 
-        nav.navigationBar.standardAppearance = appearance
-        nav.navigationBar.scrollEdgeAppearance = appearance
-        nav.navigationBar.compactAppearance = appearance
-        nav.navigationBar.tintColor = .white // <- back button & bar items
-
-        nav.navigationBar.prefersLargeTitles = true
-        setRootViewController(nav, animated: animated)
+                nav.navigationBar.prefersLargeTitles = true
+                self.setRootViewController(nav, animated: animated)
+            }
+        }
     }
 
 

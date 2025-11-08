@@ -38,10 +38,18 @@ final class FloatingBarDemoViewController: UIViewController {
         // Start on "Home" (placeholder)
         showChild(self.homeVC)
         floatingBar.select(index: 0)
+        loadUserPlaylists()
+    }
+    
+    private func loadUserPlaylists() {
+        PlaylistLibrary.loadPlaylists { success in
+            if success { print("Success in loading \(PlaylistLibrary.count) playlists")}
+        }
     }
 
     @objc private func logOut() {
         do {
+            PlaylistLibrary.clearLocal()
             try Auth.auth().signOut()
             if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
                let delegate = scene.delegate as? SceneDelegate {

@@ -57,6 +57,14 @@ class Playlist {
         self.createdAt = createdAt
         self.songs = songs
     }
+    
+    init(id: UUID, title: String, emoji: String, createdAt: Date = Date(), songs: [Song] = []) {
+        self.id = id
+        self.title = title
+        self.emoji = emoji
+        self.createdAt = createdAt
+        self.songs = songs
+    }
 
     // MARK: - Computed Properties
     var songCount: Int { songs.count }

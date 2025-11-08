@@ -10,8 +10,8 @@ import UIKit
 final class PlaylistViewController: UITableViewController {
 
     // Demo data (TODO: swap with Firebase later)
-    var playlists: [Playlist] = [
-        Playlist.demo,
+    var playlists: [Playlist] = []
+        /*Playlist.demo,
         Playlist(title: "Late Night Lo-Fi", emoji: "😴",
                  songs: [
                     Song(title: "Warmth", artist: "Keys of Moon", genre: "Lo-Fi", lengthSeconds: 214),
@@ -23,7 +23,7 @@ final class PlaylistViewController: UITableViewController {
                     Song(title: "Titanium", artist: "David Guetta", genre: "EDM", lengthSeconds: 245),
                     Song(title: "Stronger", artist: "Kanye West", genre: "Hip-Hop", lengthSeconds: 312)
                  ]),
-    ]
+    ]*/
 
     init() { super.init(style: .plain) }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -64,13 +64,29 @@ final class PlaylistViewController: UITableViewController {
         navigationItem.largeTitleDisplayMode = .always
 
     }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        loadPlaylistsFromFirebase()
+        
+    }
+    
+    private func loadPlaylistsFromFirebase() {
+           PlaylistLibrary.loadPlaylists{[weak self] success in
+               guard let self = self else {return}
+               if success {
+                   self.playlists = PlaylistLibrary.allPlaylists()
+                   self.tableView.reloadData()
+               } else {
+                   print("Failed to load playlists.")
+               }
+           }
+       }
 
     private func addTapped() {
         let vc = CreatePlaylistViewController()
-        vc.onCreate = { [weak self] newPlaylist in
-            guard let self else { return }
-            self.playlists.insert(newPlaylist, at: 0)
-            self.tableView.reloadData()
+        vc.onCreate = { [weak self] playlist in
+            self?.loadPlaylistsFromFirebase()
         }
 
         if let nav = navigationController {
@@ -134,8 +150,11 @@ final class PlaylistViewController: UITableViewController {
         // saving playlist to this table view
         detailVC.onSave = { [weak self] updated in
                 guard let self else { return }
-                self.playlists[indexPath.row] = updated
-                self.tableView.reloadRows(at: [indexPath], with: .automatic)
+                PlaylistLibrary.updatePlaylist(updated) { [weak self] success in
+                    if success {
+                        self?.loadPlaylistsFromFirebase()
+                    }
+                }
             }
         
         navigationController?.pushViewController(detailVC, animated: true)
@@ -159,10 +178,13 @@ final class PlaylistViewController: UITableViewController {
             let newTitle = alert.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !newTitle.isEmpty, newTitle != current.title else { return }
 
-            // TODO: Firebase update later
-            // Local update for now:
-            self.playlists[indexPath.row].title = newTitle
-            self.tableView.reloadRows(at: [indexPath], with: .automatic)
+            var updatedPlaylist = current
+            updatedPlaylist.title = newTitle
+            PlaylistLibrary.updatePlaylist(updatedPlaylist) { [weak self] success in
+                if success {
+                    self?.loadPlaylistsFromFirebase()
+                }
+            }
         }))
         present(alert, animated: true)
     }
@@ -176,16 +198,25 @@ final class PlaylistViewController: UITableViewController {
         )
         ac.addAction(UIAlertAction(title: "Delete", style: .destructive, handler: { [weak self] _ in
             guard let self else { return }
-            self.playlists.remove(at: indexPath.row)
-            self.tableView.deleteRows(at: [indexPath], with: .automatic)
-            // TODO: also delete from Firebase when integrated
+            PlaylistLibrary.removePlaylist(playlist) { [weak self] success in
+                if success {
+                    DispatchQueue.main.async {
+                        self?.loadPlaylistsFromFirebase()
+                    }
+                } else {
+                    print("Failed to delete playlist.")
+                }
+            }
         }))
         ac.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         present(ac, animated: true)
     }
     
     func addPlaylist(_ new: Playlist) {
-        playlists.insert(new, at: 0)
-        tableView.reloadData()
+        PlaylistLibrary.addPlaylist(new) { [weak self] success in
+            if success {
+                self?.loadPlaylistsFromFirebase()
+            }
+        }
     }
 }

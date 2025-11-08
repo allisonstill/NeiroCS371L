@@ -15,6 +15,8 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
     private let emailField = UITextField()
     private let passwordField = UITextField()
     private let loginButton = UIButton(type: .system)
+    private let orLabel = UILabel()
+    private let spotifyLoginButton = UIButton(type: .system)
     private let newUserLabel = UILabel()
     private let switchSignUpButton = UIButton(type: .system)
 
@@ -32,6 +34,29 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
 
         view.backgroundColor = ThemeColor.Color.backgroundColor
         setupScreen()
+        
+        NotificationCenter.default.addObserver(self, selector: #selector(spotifyAuthSuccess), name: Notification.Name("spotifyAuthSuccess"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(spotifyAuthFailed), name: Notification.Name("spotifyAuthFailed"), object: nil)
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    @objc private func spotifyAuthSuccess() {
+        DispatchQueue.main.async { [weak self] in
+            self?.spotifyLoginButton.isEnabled = true
+            self?.spotifyLoginButton.setTitle("Sign in with Spotify", for: .normal)
+            //scene delegate to navigate to main app
+        }
+    }
+    
+    @objc private func spotifyAuthFailed() {
+        DispatchQueue.main.async { [weak self] in
+            self?.spotifyLoginButton.isEnabled = true
+            self?.spotifyLoginButton.setTitle("Sign in with Spotify", for: .normal)
+            self?.showAlert(title: "Spotify Login Failed", message: "Unable to authenticate with Spotify. Please try again or use email and password to log in.")
+        }
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -78,6 +103,19 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
         loginButton.layer.cornerRadius = 16
         loginButton.addTarget(self, action: #selector(handleLogin), for: .touchUpInside)
         view.addSubview(loginButton)
+        
+        orLabel.text = "or"
+        orLabel.font = ThemeColor.Font.bodyAuthFont()
+        orLabel.textColor = ThemeColor.Color.textColor
+        orLabel.textAlignment = .center
+        view.addSubview(orLabel)
+        
+        spotifyLoginButton.setTitle("Sign in with Spotify", for: .normal)
+        spotifyLoginButton.backgroundColor = UIColor(red: 0.11, green: 0.73, blue: 0.33, alpha: 1.0) // looked up rgb for spotify color
+        spotifyLoginButton.setTitleColor(.white, for: .normal)
+        spotifyLoginButton.layer.cornerRadius = 16
+        spotifyLoginButton.addTarget(self, action: #selector(handleSpotifyLogin), for: .touchUpInside)
+        view.addSubview(spotifyLoginButton)
 
         newUserLabel.text = "New to Neiro?"
         newUserLabel.font = ThemeColor.Font.bodyAuthFont()
@@ -133,6 +171,12 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
         passwordField.frame = CGRect(x: fieldX, y: passY, width: fieldWidth, height: fieldHeight)
         let loginY = passwordField.frame.maxY + spaceFieldsLogin
         loginButton.frame = CGRect(x: buttonX, y: loginY, width: buttonWidth, height: buttonHeight)
+        
+        let orY = loginButton.frame.maxY + 20
+        orLabel.frame = CGRect(x:0, y: orY, width: width, height: 20)
+        
+        let spotifyY = orLabel.frame.maxY + 20
+        spotifyLoginButton.frame = CGRect(x: buttonX, y: spotifyY, width: buttonWidth, height: buttonHeight)
 
         newUserLabel.sizeToFit()
         let signUpY = view.bounds.height - bottomPadding - buttonHeight
@@ -146,6 +190,21 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
         let signUpVC = SignUpViewController()
         signUpVC.modalPresentationStyle = .fullScreen
         present(signUpVC, animated: true)
+    }
+    
+    @objc private func handleSpotifyLogin() {
+        spotifyLoginButton.isEnabled = false
+        spotifyLoginButton.setTitle("Connecting to Spotify...", for: .normal)
+        
+        SpotifyUserAuthorization.shared.startLogin(presentingVC: self, forSignup: true) { [weak self] safariVC in
+            if safariVC == nil {
+                DispatchQueue.main.async {
+                    self?.spotifyLoginButton.isEnabled = true
+                    self?.spotifyLoginButton.setTitle("Sign in with Spotify", for: .normal)
+                    self?.showAlert(title: "Error", message: "Could not log in with Spotify. Please try again.")
+                }
+            }
+        }
     }
 
     @objc private func handleLogin() {

@@ -18,8 +18,36 @@ class PlaylistLibrary {
     private var playlists: [Playlist] = []
     
     //add playlist to teh list of playlists in most recent order (most recently added)
-    static func addPlaylist(_ playlist: Playlist) {
+    static func addPlaylist(_ playlist: Playlist, completion: ((Bool) -> Void)? = nil) {
         shared.playlists.insert(playlist, at: 0)
+        
+        SpotifyPlaylistFirestore.shared.savePlaylist(playlist) { result in
+            
+            switch result {
+            case .success:
+                print("Playlist saved to Firebase")
+                completion?(true)
+            case .failure(let error):
+                print("Failed to save playlist to Firebase: \(error.localizedDescription)")
+                completion?(false)
+            }
+        }
+    }
+    
+    //load all playlists for current user from Firebase
+    static func loadPlaylists(completion: @escaping (Bool) -> Void) {
+        SpotifyPlaylistFirestore.shared.loadUserPlaylists { result in
+            
+            switch result {
+            case .success(let playlists):
+                shared.playlists = playlists
+                print("Loaded \(playlists.count) playlists from Firebase")
+                completion(true)
+            case .failure(let error):
+                print("Failed to load playlists from Firebase: \(error.localizedDescription)")
+                completion(false)
+            }
+        }
     }
     
     //return all playlists
@@ -31,21 +59,7 @@ class PlaylistLibrary {
     static func playlist(withID id: UUID) -> Playlist? {
         return shared.playlists.first { $0.id == id }
     }
-    
-    //remove playlist from playlists
-    static func removePlaylist(_ playlist: Playlist) {
-        shared.playlists.removeAll { $0.id == playlist.id }
-    }
-    
-    //remove playlist based on ID
-    static func removePlaylist(withID id: UUID) {
-        shared.playlists.removeAll { $0.id == id }
-    }
-    
-    //remove all playlists (clean ship)
-    static func clearAll() {
-        shared.playlists.removeAll()
-    }
+
     
     //return a playlist based on a certain emoji
     //core functionality!
@@ -61,5 +75,70 @@ class PlaylistLibrary {
     //get total playlist count
     static var count: Int {
         return shared.playlists.count
+    }
+    
+    
+    //remove playlist from playlists
+    static func removePlaylist(_ playlist: Playlist, completion: ((Bool) -> Void)? = nil) {
+        shared.playlists.removeAll { $0.id == playlist.id }
+        
+        SpotifyPlaylistFirestore.shared.deletePlaylist(playlist) { result in
+            switch result {
+            case .success:
+                print("Playlist deleted from Firebase")
+                completion?(true)
+            case .failure(let error):
+                print("Failed to delete playlist from Firebase \(error.localizedDescription)")
+                completion?(false)
+            }
+        }
+    }
+    
+    //remove playlist based on ID
+    static func removePlaylist(withID id: UUID, completion: ((Bool) -> Void)? = nil) {
+        if let playlist = shared.playlists.first(where: {$0.id == id}) {
+            removePlaylist(playlist, completion: completion)
+        } else {
+            completion?(false)
+        }
+    }
+    
+    //update playlist
+    static func updatePlaylist(_ playlist: Playlist, completion: ((Bool) -> Void)? = nil) {
+        if let index = shared.playlists.firstIndex(where: {$0.id == playlist.id}) {
+            shared.playlists[index] = playlist
+        }
+        
+        SpotifyPlaylistFirestore.shared.updatePlaylist(playlist) { result in
+            switch result {
+            case .success:
+                print("Playlist updated in Firebase")
+                completion?(true)
+            case .failure(let error):
+                print("Failed to update playlist in Firebase \(error.localizedDescription)")
+                completion?(false)
+            }
+        }
+    }
+    
+    static func clearLocal() {
+        shared.playlists.removeAll()
+        print("Local playlists cleared")
+    }
+    
+    //remove all playlists (clean ship)
+    static func clearAll(completion: ((Bool) -> Void)? = nil) {
+        shared.playlists.removeAll()
+        
+        SpotifyPlaylistFirestore.shared.clearAllUserPlaylists { result in
+            switch result {
+            case .success:
+                print("All playlists cleared from Firebase")
+                completion?(true)
+            case .failure(let error):
+                print("Failed to clear playlists in Firebase \(error.localizedDescription)")
+                completion?(false)
+            }
+        }
     }
 }

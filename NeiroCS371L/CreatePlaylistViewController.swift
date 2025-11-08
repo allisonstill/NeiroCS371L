@@ -214,18 +214,23 @@ final class CreatePlaylistViewController: UIViewController {
         let playlistName = getPlaylistName(for: emoji)
         let playlist = Playlist(title: playlistName, emoji: emoji, createdAt: Date(), songs: songs)
         
-        PlaylistLibrary.addPlaylist(playlist)
-        onCreate?(playlist)
-        
-        let detailVC = PlaylistDetailViewController()
-        detailVC.playlist = playlist
-        detailVC.isNewPlaylist = true
-        navigationController?.pushViewController(detailVC, animated: true)
-        
-        if SpotifySettings.shared.autoExportToSpotify {
-            exportToSpotify(playlist: playlist)
+        PlaylistLibrary.addPlaylist(playlist) { [weak self] success in
+            DispatchQueue.main.async {
+                if success {
+                    print("Playlist added and saved to Firebase")
+                    self?.onCreate?(playlist)
+                }
+                
+                let detailVC = PlaylistDetailViewController()
+                detailVC.playlist = playlist
+                detailVC.isNewPlaylist = true
+                self?.navigationController?.pushViewController(detailVC, animated: true)
+                
+                if SpotifySettings.shared.autoExportToSpotify {
+                    self?.exportToSpotify(playlist: playlist)
+                }
+            }
         }
-        
     }
     
     //TODO: generate playlist names based on the emoji

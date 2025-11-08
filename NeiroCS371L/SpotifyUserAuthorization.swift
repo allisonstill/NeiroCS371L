@@ -267,17 +267,30 @@ class SpotifyUserAuthorization {
                 //email already in use
                 if error.code == AuthErrorCode.emailAlreadyInUse.rawValue{
                     print("Account/email in use, signing in as this user!")
-                    Auth.auth().signIn(withEmail: email, password: password) { _, signInError in
+                    
+                    if let storedPassword = UserDefaults.standard.string(forKey: self.firebasePasswordKey) {
                         
-                        if signInError == nil {
-                            UserDefaults.standard.set(password, forKey: self.firebasePasswordKey)
-                            print("Signed into existing account!")
-                            completion(true)
-                        } else {
-                            print("sign in failed: \(signInError?.localizedDescription ?? "unknown")")
-                            completion(false)
+                        Auth.auth().signIn(withEmail: email, password: storedPassword) { _, signInError in
+                            
+                            if signInError == nil {
+                                print("Signed into existing account with stored password!")
+                                completion(true)
+                            } else {
+                                print("sign in failed with stored password: \(signInError?.localizedDescription ?? "unknown")")
+                                DispatchQueue.main.async {
+                                    self.notifyPasswordIssue(email: email)
+                                }
+                                completion(false)
+                            }
                         }
+                    } else {
+                        print("No stored password found.")
+                        DispatchQueue.main.async {
+                            self.notifyPasswordIssue(email: email)
+                        }
+                        completion(false)
                     }
+                    
                 } else {
                     print("Firebase account creation didn't work: \(error.localizedDescription)")
                     completion(false)
@@ -289,6 +302,23 @@ class SpotifyUserAuthorization {
                 completion(true)
             }
         }
+    }
+    
+    private func notifyPasswordIssue(email: String) {
+        guard let topVC = UIApplication.shared.windows.first?.rootViewController else { return }
+        
+        let alert = UIAlertController(title: "Account Already Exists", message: "An account with this email already exists. Please use original password.", preferredStyle: .alert)
+        
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
+            Auth.auth().sendPasswordReset(withEmail: email) { error in
+                if let error = error {
+                    print("Pasword reset failed: \(error.localizedDescription)")
+                } else {
+                    print("Password reset email sent!")
+                }
+            }
+        })
+        topVC.present(alert, animated: true)
     }
     
     //disconnect and log out/clear data
