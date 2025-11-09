@@ -15,32 +15,170 @@ final class PlaylistDetailViewController: UIViewController {
     private var tableView = UITableView()
     private var player: AVPlayer?
     private var currentlyPlayingIndex: IndexPath?
-    private let saveButton = UIButton(type: .system)
     var isNewPlaylist: Bool = false
-    private var tableBottomConstraint: NSLayoutConstraint!
-    
-    private let exportButton = UIButton(type: .system)
-    private let activityIndicator = UIActivityIndicatorView(style: .medium)
     private var playbackObserver: Any?
+    
+    private let headerView = UIView()
+    private let gradientView = CAGradientLayer()
+    private let emojiLabel = UILabel()
+    private let playlistNameLabel = UILabel()
+    private let featuresLabel = UILabel()
+    private let artistsLabel = UILabel()
+    private let timestampLabel = UILabel()
+    private let updateButton = UIButton(type: .system)
+    private let exportButton = UIButton(type: .system)
+    private let exportBlurView = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
+    
+    //private var tableBottomConstraint: NSLayoutConstraint!
+    //private let saveButton = UIButton(type: .system)
+    
+    private let activityIndicator = UIActivityIndicatorView(style: .medium)
+    
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = playlist.title
+        //title = playlist.title
         view.backgroundColor = ThemeColor.Color.backgroundColor
-        configureTableView()
-        configureExportButton()
-        if isNewPlaylist {
-                    configureSaveButton()
-                    tableBottomConstraint.constant = -80 // leave space for the button
-                } else {
-                    tableBottomConstraint.constant = 0   // no button, table goes to bottom
-                }
+        
+        navigationItem.leftBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "chevron.left"), style: .plain, target: self, action: #selector(backTapped))
+        navigationItem.leftBarButtonItem?.tintColor = .white
         
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .action, target: self, action: #selector(shareTapped))
         
+        configureHeader()
+        configureUpdateButton()
+        configureTableView()
+        configureExportButton()
+        
+
         if isNewPlaylist{
             showNewPlaylistAlert()
         }
+    }
+    
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        gradientView.frame = headerView.bounds
+    }
+    
+    private func configureHeader() {
+        headerView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(headerView)
+        
+        //adding gradient background
+        let colors = generateGradientColors(from: playlist.emoji)
+        gradientView.colors = colors.map {$0.cgColor}
+        gradientView.startPoint = CGPoint(x: 0, y: 0)
+        gradientView.endPoint = CGPoint(x: 1, y: 1)
+        headerView.layer.insertSublayer(gradientView, at: 0)
+        
+        //emoji on left side of header
+        emojiLabel.translatesAutoresizingMaskIntoConstraints = false
+        emojiLabel.text = playlist.emoji
+        emojiLabel.font = .systemFont(ofSize: 80)
+        emojiLabel.textAlignment = .center
+        headerView.addSubview(emojiLabel)
+        
+        //container on right
+        let rightContainer = UIView()
+        rightContainer.translatesAutoresizingMaskIntoConstraints = false
+        headerView.addSubview(rightContainer)
+        
+        //playlist name
+        playlistNameLabel.translatesAutoresizingMaskIntoConstraints = false
+        playlistNameLabel.text = playlist.title
+        playlistNameLabel.font = .systemFont(ofSize: 24, weight: .bold)
+        playlistNameLabel.textColor = .white
+        playlistNameLabel.numberOfLines = 2
+        rightContainer.addSubview(playlistNameLabel)
+        
+        //features label
+        featuresLabel.translatesAutoresizingMaskIntoConstraints = false
+        featuresLabel.text = "Features:"
+        featuresLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+        featuresLabel.textColor = .white.withAlphaComponent(0.8)
+        rightContainer.addSubview(featuresLabel)
+        
+        //artists list
+        let arists = Array(Set(playlist.songs.compactMap {$0.artist})).prefix(3)
+        artistsLabel.translatesAutoresizingMaskIntoConstraints = false
+        artistsLabel.text = arists.isEmpty ? "Various Artists" : arists.joined(separator: ", ")
+        artistsLabel.font = .systemFont(ofSize: 13)
+        artistsLabel.textColor = .white.withAlphaComponent(0.9)
+        artistsLabel.numberOfLines = 2
+        rightContainer.addSubview(artistsLabel)
+        
+        //timestamp
+        timestampLabel.translatesAutoresizingMaskIntoConstraints = false
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        timestampLabel.text = "Created At: \(formatter.string(from: playlist.createdAt))"
+        timestampLabel.font = .systemFont(ofSize: 12)
+        timestampLabel.textColor = .white.withAlphaComponent(0.7)
+        rightContainer.addSubview(timestampLabel)
+        
+        NSLayoutConstraint.activate([
+            
+            //header view
+            headerView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            headerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            headerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            headerView.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.2),
+            
+            //emoji label
+            emojiLabel.leadingAnchor.constraint(equalTo: headerView.leadingAnchor, constant: 20),
+            emojiLabel.centerYAnchor.constraint(equalTo: headerView.centerYAnchor),
+            emojiLabel.widthAnchor.constraint(equalToConstant: 100),
+            
+            //right container
+            rightContainer.leadingAnchor.constraint(equalTo: emojiLabel.trailingAnchor, constant: 16),
+            rightContainer.trailingAnchor.constraint(equalTo: headerView.trailingAnchor, constant: -20),
+            rightContainer.centerYAnchor.constraint(equalTo: headerView.centerYAnchor),
+            
+            //playlist name
+            playlistNameLabel.topAnchor.constraint(equalTo: rightContainer.topAnchor),
+            playlistNameLabel.leadingAnchor.constraint(equalTo: rightContainer.leadingAnchor),
+            playlistNameLabel.trailingAnchor.constraint(equalTo: rightContainer.trailingAnchor),
+            
+            //features label
+            featuresLabel.topAnchor.constraint(equalTo: playlistNameLabel.bottomAnchor, constant: 12),
+            featuresLabel.leadingAnchor.constraint(equalTo: rightContainer.leadingAnchor),
+            featuresLabel.trailingAnchor.constraint(equalTo: rightContainer.trailingAnchor),
+            
+            //artists label
+            artistsLabel.topAnchor.constraint(equalTo: featuresLabel.bottomAnchor, constant: 4),
+            artistsLabel.leadingAnchor.constraint(equalTo: rightContainer.leadingAnchor),
+            artistsLabel.trailingAnchor.constraint(equalTo: rightContainer.trailingAnchor),
+            
+            //timestamp label
+            timestampLabel.topAnchor.constraint(equalTo: artistsLabel.bottomAnchor, constant: 8),
+            timestampLabel.leadingAnchor.constraint(equalTo: rightContainer.leadingAnchor),
+            timestampLabel.trailingAnchor.constraint(equalTo: rightContainer.trailingAnchor),
+            timestampLabel.bottomAnchor.constraint(lessThanOrEqualTo: rightContainer.bottomAnchor)
+            
+        ])
+    }
+    
+    private func configureUpdateButton() {
+        updateButton.translatesAutoresizingMaskIntoConstraints = false
+        updateButton.setTitle("Update Playlist", for: .normal)
+        updateButton.titleLabel?.font = .systemFont(ofSize: 14, weight: .medium)
+        updateButton.setTitleColor(.white, for: .normal)
+        updateButton.backgroundColor = UIColor.white.withAlphaComponent(0.2)
+        updateButton.layer.cornerRadius = 16
+        updateButton.layer.borderWidth = 1
+        updateButton.layer.borderColor = UIColor.white.withAlphaComponent(0.3).cgColor
+        updateButton.addTarget(self, action: #selector(updatePlaylistTapped), for: .touchUpInside)
+        view.addSubview(updateButton)
+        
+        NSLayoutConstraint.activate([
+            updateButton.topAnchor.constraint(equalTo: headerView.bottomAnchor, constant: 12),
+            updateButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            updateButton.widthAnchor.constraint(equalToConstant: 150),
+            updateButton.heightAnchor.constraint(equalToConstant: 32)
+            
+        ])
     }
 
     private func configureTableView() {
@@ -50,15 +188,14 @@ final class PlaylistDetailViewController: UIViewController {
         tableView.dataSource = self
         tableView.delegate = self
         tableView.register(SongRow.self, forCellReuseIdentifier: "SongRow")
+        tableView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 100, right: 0)
         view.addSubview(tableView)
 
-        tableBottomConstraint = tableView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: 0)
-        
         NSLayoutConstraint.activate([
-            tableView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            tableView.topAnchor.constraint(equalTo: updateButton.bottomAnchor, constant: 12),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            tableBottomConstraint
+            tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
     }
     
@@ -66,26 +203,33 @@ final class PlaylistDetailViewController: UIViewController {
         //only show if connected to spotify
         guard SpotifyUserAuthorization.shared.isConnected else { return }
         
+        //blur view behind export button
+        exportBlurView.translatesAutoresizingMaskIntoConstraints = false
+        exportBlurView.layer.cornerRadius = 0
+        exportBlurView.clipsToBounds = true
+        view.addSubview(exportBlurView)
+        
+        //export button
         exportButton.translatesAutoresizingMaskIntoConstraints = false
         exportButton.setTitle("Export to Spotify", for: .normal)
         exportButton.setImage(UIImage(systemName: "square.and.arrow.up"), for: .normal)
         exportButton.titleLabel?.font = .systemFont(ofSize: 16, weight: .semibold)
         exportButton.setTitleColor(.white, for: .normal)
-        exportButton.backgroundColor = .systemGreen
+        exportButton.tintColor = .white
+        exportButton.backgroundColor = UIColor.systemGreen.withAlphaComponent(0.9)
         exportButton.layer.cornerRadius = 12
-        exportButton.contentEdgeInsets = UIEdgeInsets(top: 10, left: 16, bottom: 10, right: 16)
         exportButton.addTarget(self, action: #selector(exportTapped), for: .touchUpInside)
         
         if #available(iOS 15.0, *) {
             var config = UIButton.Configuration.filled()
             config.title = "Export to Spotify"
             config.image = UIImage(systemName: "square.and.arrow.up")
-            config.baseBackgroundColor = .systemGreen
+            config.baseBackgroundColor = UIColor.systemGreen.withAlphaComponent(0.9)
             config.baseForegroundColor = .white
             config.cornerStyle = .medium
             config.imagePlacement = .leading
             config.imagePadding = 8
-            config.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16)
+            config.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 20, bottom: 12, trailing: 20)
             exportButton.configuration = config
         }
         
@@ -94,24 +238,24 @@ final class PlaylistDetailViewController: UIViewController {
         activityIndicator.color = .white
         exportButton.addSubview(activityIndicator)
         
-        view.addSubview(exportButton)
+        exportBlurView.contentView.addSubview(exportButton)
         
         NSLayoutConstraint.activate([
-            exportButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
-            exportButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            exportButton.heightAnchor.constraint(equalToConstant: 44),
+            exportBlurView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            exportBlurView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            exportBlurView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            exportBlurView.heightAnchor.constraint(equalToConstant: 100),
+            
+            exportButton.centerXAnchor.constraint(equalTo: exportBlurView.centerXAnchor),
+            exportButton.centerYAnchor.constraint(equalTo: exportBlurView.centerYAnchor, constant: -10),
+            exportButton.heightAnchor.constraint(equalToConstant: 50),
+            exportButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 200),
             
             activityIndicator.centerXAnchor.constraint(equalTo: exportButton.centerXAnchor),
             activityIndicator.centerYAnchor.constraint(equalTo: exportButton.centerYAnchor)
         ])
-        
-        if let topConstraint = tableView.constraints.first(where: {$0.firstAnchor == tableView.topAnchor}) {
-            topConstraint.isActive = false
-        }
-        
-        tableView.topAnchor.constraint(equalTo: exportButton.bottomAnchor, constant: 8).isActive = true
     }
-    
+    /*
     private func configureSaveButton() {
             saveButton.translatesAutoresizingMaskIntoConstraints = false
             saveButton.setTitle("Save Playlist", for: .normal)
@@ -128,7 +272,18 @@ final class PlaylistDetailViewController: UIViewController {
                 saveButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
                 saveButton.heightAnchor.constraint(equalToConstant: 50)
             ])
-        }
+        }*/
+    
+    private func generateGradientColors(from emoji: String) -> [UIColor] {
+        let hash = emoji.hashValue
+        let firstHue = CGFloat((hash & 0xFF)) / 255.0
+        let secondHue = CGFloat(((hash >> 8) & 0xFF)) / 255.0
+        
+        let firstColor = UIColor(hue: firstHue, saturation: 0.6, brightness: 0.5, alpha: 1.0)
+        let secondColor = UIColor(hue: secondHue, saturation: 0.6, brightness: 0.3, alpha: 1.0)
+        
+        return [firstColor, secondColor]
+    }
 
     // MARK: - Playback
     //TODO: Not sure if the play snippets are working yet
@@ -234,7 +389,29 @@ final class PlaylistDetailViewController: UIViewController {
         }
     }
     
-    @objc private func saveTapped() {
+    @objc private func backTapped() {
+        onSave?(playlist)
+        guard let nav = navigationController else {
+            dismiss(animated: true)
+            return
+        }
+        
+        if let viewControllers = nav.viewControllers as? [UIViewController] {
+            for vc in viewControllers.reversed() {
+                if vc is PlaylistViewController {
+                    nav.popToViewController(vc, animated: true)
+                    return
+                }
+            }
+        }
+        nav.popViewController(animated: true)
+    }
+    
+    @objc private func updatePlaylistTapped() {
+        //TODO: fill this out to create a button to update the playlist!
+    }
+    
+    /*@objc private func saveTapped() {
         let hadOnSave = (onSave != nil)
         onSave?(playlist)
 
@@ -260,7 +437,7 @@ final class PlaylistDetailViewController: UIViewController {
 
         // 3) Fallback: just pop one level
         nav.popViewController(animated: true)
-    }
+    }*/
     
     @objc private func exportTapped() {
         guard SpotifyUserAuthorization.shared.isConnected else {
