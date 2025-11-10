@@ -24,12 +24,11 @@ final class FloatingBar: UIView {
     private let stack = UIStackView()
     private var itemViews: [NavItemView] = []
 
-    // Order: Home, Playlists, Group, Profile, Settings
+    // Order: Playlists (also Home), History, Group, Settings
     private let items: [(title: String, symbol: String)] = [
-        ("Home", "house.fill"),
-        ("Playlists", "music.note.list"),
+        ("Playlist", "music.note"),
+        ("History", "clock"),
         ("Group", "person.3.fill"),
-        ("Profile", "person.crop.circle"),
         ("Settings", "gearshape.fill"),
     ]
 

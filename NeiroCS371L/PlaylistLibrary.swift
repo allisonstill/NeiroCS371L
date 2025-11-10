@@ -14,8 +14,24 @@ class PlaylistLibrary {
     static let shared = PlaylistLibrary()
     private init() {}
     
+    //store uuid of most recently opened playlist
+    private enum RecentKeys { static let lastOpenedID = "neiro_last_opened_playlist_id" }
+    
     //list of playlists in the app
     private var playlists: [Playlist] = []
+    
+    //save most recently opened playlist
+    static func setLastOpened(_ playlist: Playlist) {
+        UserDefaults.standard.set(playlist.id.uuidString, forKey: RecentKeys.lastOpenedID)
+    }
+    
+    //change the id from userdefaults to in-memory
+    static func lastOpenedPlaylist() -> Playlist? {
+        guard let idString = UserDefaults.standard.string(forKey: RecentKeys.lastOpenedID),
+              let id = UUID(uuidString: idString) else { return nil }
+        
+        return shared.playlists.first(where: { $0.id == id })
+    }
     
     //add playlist to teh list of playlists in most recent order (most recently added)
     static func addPlaylist(_ playlist: Playlist, completion: ((Bool) -> Void)? = nil) {
@@ -140,5 +156,10 @@ class PlaylistLibrary {
                 completion?(false)
             }
         }
+    }
+    
+    //return the last opened playlist or newest if one hasn't been opened on this session
+    static func homePlaylist() -> Playlist? {
+        return lastOpenedPlaylist() ?? shared.playlists.first
     }
 }

@@ -12,11 +12,10 @@ final class FloatingBarDemoViewController: UIViewController {
 
     private let floatingBar = FloatingBar()
     private let content = UIView()          // where child screens live
-    private var currentChild: UIViewController?
-    private lazy var homeVC      = SimplePlaceholderVC(title: "Home")
-    private lazy var playlistsVC = PlaylistViewController()
-    private lazy var groupVC     = SimplePlaceholderVC(title: "Group")
-    private lazy var profileVC   = SimplePlaceholderVC(title: "Profile")
+    private var currentChild: UIViewController?    
+    private lazy var homeVC = HomePlaylistViewController()
+    private lazy var historyVC = PlaylistViewController()
+    private lazy var groupVC = SimplePlaceholderVC(title: "Group")
     private lazy var settingsVC = SettingsViewController()
 
     override func viewDidLoad() {
@@ -138,7 +137,7 @@ final class FloatingBarDemoViewController: UIViewController {
         navigationController?.navigationBar.tintColor = .label
     }
 
-
+    // slight change to reflect comments on alpha release
     private func wireFloatingBar() {
         floatingBar.onTap = { [weak self] index in
             guard let self = self else { return }
@@ -146,17 +145,15 @@ final class FloatingBarDemoViewController: UIViewController {
             case 0:
                 self.floatingBar.select(index: 0)
                 self.showChild(self.homeVC)
+                self.homeVC.refresh()
             case 1:
                 self.floatingBar.select(index: 1)
-                self.showChild(self.playlistsVC)
+                self.showChild(self.historyVC)
             case 2:
                 self.floatingBar.select(index: 2)
                 self.showChild(self.groupVC)
             case 3:
                 self.floatingBar.select(index: 3)
-                self.showChild(self.profileVC)
-            case 4:
-                self.floatingBar.select(index: 4)
                 self.showChild(self.settingsVC)
             default:
                 break

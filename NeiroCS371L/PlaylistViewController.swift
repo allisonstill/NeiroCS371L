@@ -39,20 +39,46 @@ final class PlaylistViewController: UITableViewController {
     }
     
     private func setupNavigationBar() {
-        title = "Playlists"
+        title = "Playlist History"
         navigationController?.navigationBar.prefersLargeTitles = true
         navigationItem.largeTitleDisplayMode = .always
-        
-        //add button on top right "+"
-        let addAction = UIAction(title: "Add Playlist") { [weak self] _ in
-            self?.addTapped()
+
+        // we have three options: pick emoji, random, describe
+        // only pick emoji is implemented
+        // TODO: implement random, describe with LLM
+        let pickEmoji = UIAction(title: "Pick Emoji to Create", image: UIImage(systemName: "faceid")) { [weak self] _ in
+            self?.presentCreatePicker(mode: .emojiPicker)
         }
-        let addItem = UIBarButtonItem(systemItem: .add, primaryAction: addAction)
-        addItem.accessibilityLabel = "Add Playlist"
-        
-        navigationItem.rightBarButtonItem  = addItem
-        navigationItem.rightBarButtonItems = [addItem]
+        let random = UIAction(title: "Random Playlist", image: UIImage(systemName: "shuffle")) { _ in
+        }
+        let describe = UIAction(title: "Describe Playlist", image: UIImage(systemName: "text.bubble")) { _ in
+        }
+
+        // set up three option menu from '+' button
+        let menu = UIMenu(title: "", children: [pickEmoji, random, describe])
+        let addItem = UIBarButtonItem(systemItem: .add)
+        addItem.menu = menu
+        navigationItem.rightBarButtonItem = addItem
     }
+
+    private enum CreateMode { case emojiPicker }// TODO: implement random, LLM
+
+    // decides what options user has based on the method of adding a playlist they have selected: pick emoji, random, describe
+    //TODO: implement random, LLM
+    private func presentCreatePicker(mode: CreateMode) {
+        let vc = CreatePlaylistViewController()
+        vc.prefersExplicitCreate = true // only choose emoji is implemented rn
+        
+        //mark new playlist as last opened
+        vc.onCreate = { [weak self] playlist in
+            PlaylistLibrary.setLastOpened(playlist)
+            NotificationCenter.default.post(name: .lastOpenedPlaylistDidChange, object: nil)
+            self?.loadPlaylistsFromFirebase()
+        }
+
+        navigationController?.pushViewController(vc, animated: true)
+    }
+
     
     private func setupTableView() {
         view.backgroundColor = ThemeColor.Color.backgroundColor
@@ -156,9 +182,15 @@ final class PlaylistViewController: UITableViewController {
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
+        let playlist = playlists[indexPath.row]
+        
+        //chosen playlist is the new 'last opened'
+        PlaylistLibrary.setLastOpened(playlist)
+        NotificationCenter.default.post(name: .lastOpenedPlaylistDidChange, object: nil)
+        
         // Navigate to detail screen with the selected playlist
         let detailVC = PlaylistDetailViewController()
-        detailVC.playlist = playlists[indexPath.row]
+        detailVC.playlist = playlist
         
         // saving playlist to this table view
         detailVC.onSave = { [weak self] updated in

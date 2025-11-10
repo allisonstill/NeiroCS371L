@@ -144,6 +144,7 @@ class SpotifyPlaylistFirestore {
         if let album = song.album { dict["album"] = album }
         if let genre = song.genre { dict["genre"] = genre }
         if let length = song.lengthSeconds { dict["lengthSeconds"] = length }
+        if let albumURL = song.albumURL { dict["albumURL"] = albumURL }
         
         return dict
     }
@@ -170,7 +171,8 @@ class SpotifyPlaylistFirestore {
         let album = dict["album"] as? String
         let genre = dict["genre"] as? String
         let lengthSeconds = dict["lengthSeconds"] as? Int
+        let albumURL = dict["albumURL"] as? String
         
-        return Song(title: title, artist: artist, album: album, genre: genre, lengthSeconds: lengthSeconds)
+        return Song(title: title, artist: artist, album: album, genre: genre, lengthSeconds: lengthSeconds, albumURL: albumURL)
     }
 }

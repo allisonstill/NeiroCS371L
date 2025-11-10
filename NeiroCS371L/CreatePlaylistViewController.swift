@@ -11,6 +11,14 @@ final class CreatePlaylistViewController: UIViewController {
 
     // Callback to return a new playlist to the list VC
     var onCreate: ((Playlist) -> Void)?
+    
+    // flags for how to add a new playlist
+    var prefersExplicitCreate: Bool = false
+    
+    // adding new playlist button (to gray out)
+    private let createButton = UIButton(type: .system)
+    private var randomButton: UIButton!
+    private var describeButton: UIButton!
 
     // Easily editable emoji set
     var emojis: [String] = ["😀","😎","🥲","😭",
@@ -35,6 +43,30 @@ final class CreatePlaylistViewController: UIViewController {
         super.viewWillAppear(animated)
         checkSpotifyConnection()
     }
+    
+    //tap and untap an emoji
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        let emoji = emojis[indexPath.item]
+        
+        //deselect the current emoji
+        selectedEmoji = (selectedEmoji == emoji ? nil : emoji)   // toggle
+        collectionView.reloadData()
+        applySelectionUIState()
+    }
+
+    private func applySelectionUIState() {
+        let hasEmoji = (selectedEmoji != nil)
+        createButton.isEnabled = prefersExplicitCreate ? hasEmoji : true
+        createButton.alpha = createButton.isEnabled ? 1.0 : 0.6
+
+        // Grey out alternative creation paths when emoji is chosen
+        let dim: CGFloat = hasEmoji ? 0.4 : 1.0
+        [randomButton, describeButton].forEach {
+            $0?.isEnabled = !hasEmoji
+            $0?.alpha = dim
+        }
+    }
+
 
     private func setupCollection() {
         let layout = UICollectionViewFlowLayout()
@@ -59,13 +91,29 @@ final class CreatePlaylistViewController: UIViewController {
     }
 
     private func setupButtons() {
+        
+        //TODO: implement functionality for random playlist mood
+        //select a random emoji to make a playlist
         let makeRandom = primaryButton("Select Random Playlist Mood")
+        randomButton = makeRandom
         makeRandom.addTarget(self, action: #selector(randomTapped), for: .touchUpInside)
 
+        //TODO: implement functionality for describe playlist
+        //button to describe a playlist in words to create
         let describe = secondaryButton("Describe Your Own Playlist")
+        describeButton = describe
         describe.addTarget(self, action: #selector(describeTapped), for: .touchUpInside)
 
-        let stack = UIStackView(arrangedSubviews: [makeRandom, describe])
+        // Create button -- select emoji and create playlist
+        createButton.setTitle("Create Playlist", for: .normal)
+        createButton.isEnabled = !prefersExplicitCreate
+        createButton.addTarget(self, action: #selector(createTapped), for: .touchUpInside)
+        createButton.layer.cornerRadius = 12
+        createButton.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.9)
+        createButton.setTitleColor(.white, for: .normal)
+        createButton.heightAnchor.constraint(equalToConstant: 48).isActive = true
+
+        let stack = UIStackView(arrangedSubviews: [makeRandom, describe, createButton])
         stack.axis = .vertical
         stack.spacing = 12
         stack.alignment = .fill
@@ -79,6 +127,27 @@ final class CreatePlaylistViewController: UIViewController {
         ])
     }
     
+    //create button was pressed (pick an emoji to generate a playlist)
+    @objc private func createTapped() {
+        guard let emoji = selectedEmoji else {
+            showAlert(title: "Pick an emoji", message: "Choose a mood to create a playlist.")
+            return
+        }
+        // Generate a playlist based on this emoji
+        generatePlaylistFromSpotify(for: emoji)
+    }
+    
+    //TODO: implement describe playlist
+    @objc private func describeTapped() {
+        // placeholder for text/AI prompt integration later
+        showAlert(title: "Coming Soon", message: "Not yet implemented.")
+    }
+    
+    //TODO: implement random choosing
+    @objc private func randomTapped() {
+        showAlert(title: "Coming Soon", message: "Not yet implemented.")
+    }
+
     private func setupActivityIndicator() {
         activityIndicator.translatesAutoresizingMaskIntoConstraints = false
         activityIndicator.hidesWhenStopped = true
@@ -140,18 +209,6 @@ final class CreatePlaylistViewController: UIViewController {
     }
 
     // MARK: Actions
-    @objc private func randomTapped() {
-        guard let random = emojis.filter({ $0 != "➕" }).randomElement() else { return }
-    
-            selectedEmoji = random
-            collectionView.reloadData()
-            handleEmojiSelection(random)
-    }
-
-    @objc private func describeTapped() {
-        // placeholder for text/AI prompt integration later
-        showAlert(title: "Coming Soon", message: "Not yet implemented.")
-    }
 
     private func handleEmojiSelection(_ emoji: String) {
         guard emoji != "➕" else {
@@ -303,13 +360,6 @@ extension CreatePlaylistViewController: UICollectionViewDelegateFlowLayout, UICo
         let spacing: CGFloat = 12 * (columns + 1)
         let width = (collectionView.bounds.width - spacing) / columns
         return CGSize(width: width, height: width)
-    }
-
-    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        let emoji = emojis[indexPath.item]
-        selectedEmoji = emoji
-        collectionView.reloadData()
-        handleEmojiSelection(emoji)
     }
 }
 
