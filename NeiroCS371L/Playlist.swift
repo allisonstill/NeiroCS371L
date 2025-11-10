@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import UIKit
 
 // MARK: - Song Model
 class Song {
@@ -15,18 +16,21 @@ class Song {
     var album: String?
     var genre: String?
     var lengthSeconds: Int? // duration in seconds
+    var albumURL: String?
 
     init(title: String,
          artist: String? = nil,
          album: String? = nil,
          genre: String? = nil,
-         lengthSeconds: Int? = nil) {
+         lengthSeconds: Int? = nil,
+         albumURL: String? = nil) {
         self.id = UUID()
         self.title = title
         self.artist = artist
         self.album = album
         self.genre = genre
         self.lengthSeconds = lengthSeconds
+        self.albumURL = albumURL
     }
 
     // MARK: - Helper Properties
@@ -49,21 +53,25 @@ class Playlist {
     var emoji: String
     var createdAt: Date
     var songs: [Song]
-
-    init(title: String, emoji: String, createdAt: Date = Date(), songs: [Song] = []) {
+    var gradientColors: [UIColor]?
+    
+    init(title: String, emoji: String, createdAt: Date = Date(), songs: [Song] = [],
+         gradientColors: [UIColor]? = nil) {
         self.id = UUID()
         self.title = title
         self.emoji = emoji
         self.createdAt = createdAt
         self.songs = songs
+        self.gradientColors = gradientColors
     }
     
-    init(id: UUID, title: String, emoji: String, createdAt: Date = Date(), songs: [Song] = []) {
+    init(id: UUID, title: String, emoji: String, createdAt: Date = Date(), songs: [Song] = [], gradientColors: [UIColor]? = nil) {
         self.id = id
         self.title = title
         self.emoji = emoji
         self.createdAt = createdAt
         self.songs = songs
+        self.gradientColors = gradientColors
     }
 
     // MARK: - Computed Properties
@@ -95,22 +103,8 @@ class Playlist {
         Genres: \(genres.isEmpty ? "N/A" : genres.joined(separator: ", "))
         """
     }
-
-    // MARK: - Demo Data, for testing
-    static var demo: Playlist {
-        let songs = [
-            Song(title: "Blinding Lights", artist: "The Weeknd", album: "After Hours", genre: "Pop", lengthSeconds: 200),
-            Song(title: "Levitating", artist: "Dua Lipa", album: "Future Nostalgia", genre: "Pop", lengthSeconds: 203),
-            Song(title: "Lose Yourself", artist: "Eminem", album: "8 Mile", genre: "Rap", lengthSeconds: 326),
-            Song(title: "Sunflower", artist: "Post Malone", album: "Spider-Verse", genre: "Alternative", lengthSeconds: 157)
-        ]
-        return Playlist(title: "Sunny Vibes", emoji: "😎", createdAt: Date(), songs: songs)
-    }
-
-    static var demoList: [Playlist] {
-        [Playlist.demo]
-    }
-
+    
+    
     // MARK: - Helper Functions
     func addSong(_ song: Song) {
         songs.append(song)

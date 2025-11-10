@@ -50,6 +50,7 @@ struct SpotifyTrack: Codable {
         let artistName = artists.first?.name
         let albumName = album.name
         let durationSeconds = duration_ms / 1000
+        let albumImageURL = album.images.first?.url
         
         
         //create a song based on the SpotifyTrack
@@ -58,7 +59,8 @@ struct SpotifyTrack: Codable {
             artist: artistName,
             album: albumName,
             genre: nil, //get from search
-            lengthSeconds: durationSeconds
+            lengthSeconds: durationSeconds,
+            albumURL: albumImageURL
         )
     }
 }

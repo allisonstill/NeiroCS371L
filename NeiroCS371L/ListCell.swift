@@ -10,6 +10,7 @@ import UIKit
 class ListCell: UITableViewCell {
 
     private let card = UIView()
+    private let gradientLayer = CAGradientLayer() // gradient layer for background
     private let imgView = UIImageView()
     private let emojiLabel = UILabel()
     private let titleLabel = UILabel()
@@ -49,6 +50,13 @@ class ListCell: UITableViewCell {
         card.layer.shadowOpacity = 0.08
         card.layer.shadowRadius = 6
         card.layer.shadowOffset = CGSize(width: 0, height: 3)
+        
+        // add gradient layer to card
+        gradientLayer.cornerRadius = 16
+        gradientLayer.startPoint = CGPoint(x: 0, y:0)
+        gradientLayer.endPoint = CGPoint(x: 1, y:1)
+        card.layer.insertSublayer(gradientLayer, at: 0)
+        
         contentView.addSubview(card)
         card.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
@@ -59,14 +67,17 @@ class ListCell: UITableViewCell {
         ])
 
         // Lead (image/emoji)
+        lead.backgroundColor = .clear
         imgView.contentMode = .scaleAspectFill
         imgView.layer.cornerRadius = 12
         imgView.clipsToBounds = true
         imgView.isHidden = true
-
+        imgView.backgroundColor = .clear
+        
         emojiLabel.font = .systemFont(ofSize: 40)
         emojiLabel.textAlignment = .center
         emojiLabel.isHidden = true
+        emojiLabel.backgroundColor = .clear
 
         lead.addSubview(imgView)
         lead.addSubview(emojiLabel)
@@ -88,12 +99,15 @@ class ListCell: UITableViewCell {
         // Text
         titleLabel.font = .systemFont(ofSize: 18, weight: .semibold)
         titleLabel.textColor = .label
+        titleLabel.backgroundColor = .clear
         subLabel.font = .systemFont(ofSize: 13, weight: .medium)
         subLabel.textColor = .secondaryLabel
         subLabel.numberOfLines = 1
+        subLabel.backgroundColor = .clear
 
         stackV.axis = .vertical
         stackV.spacing = 4
+        stackV.backgroundColor = .clear
         stackV.addArrangedSubview(titleLabel)
         stackV.addArrangedSubview(subLabel)
 
@@ -102,6 +116,7 @@ class ListCell: UITableViewCell {
         trailingStack.alignment = .center
         trailingStack.spacing = 8
         trailingStack.isLayoutMarginsRelativeArrangement = false
+        trailingStack.backgroundColor = .clear
 
         [trailingTopIcon, trailingBottomIcon].forEach { icon in
             icon.tintColor = .tertiaryLabel
@@ -132,6 +147,7 @@ class ListCell: UITableViewCell {
         stackH.axis = .horizontal
         stackH.alignment = .center
         stackH.spacing = 14
+        stackH.backgroundColor = .clear
         stackH.addArrangedSubview(lead)
         stackH.addArrangedSubview(stackV)
         stackH.addArrangedSubview(UIView()) // flexible spacer
@@ -146,6 +162,13 @@ class ListCell: UITableViewCell {
             stackH.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -16)
         ])
     }
+    
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        
+        //update gradient frame
+        gradientLayer.frame = card.bounds
+    }
 
     // Configure
     func configure(
@@ -153,6 +176,7 @@ class ListCell: UITableViewCell {
         emoji: String? = nil,
         title: String,
         subtitle: String? = nil,
+        gradientColors: [UIColor]? = nil,
         trailingTopImage: UIImage? = nil,
         trailingTopTap: (() -> Void)? = nil,
         trailingBottomImage: UIImage? = nil,
@@ -177,6 +201,29 @@ class ListCell: UITableViewCell {
             emojiLabel.isHidden = true
             imgView.isHidden = true
             showLead(false)
+        }
+        
+        //configure gradient background
+        if let colors = gradientColors {
+            gradientLayer.colors = colors.map { $0.cgColor }
+            gradientLayer.isHidden = false
+            card.backgroundColor = .clear
+            
+            titleLabel.textColor = .white
+            subLabel.textColor = .white.withAlphaComponent(0.8)
+            
+            DispatchQueue.main.async{ [weak self] in
+                guard let self = self else { return }
+                self.setNeedsLayout()
+                self.layoutIfNeeded()
+            }
+        } else {
+            gradientLayer.isHidden = true
+            card.backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.9)
+            
+            //use default label colors
+            titleLabel.textColor = .label
+            subLabel.textColor = .secondaryLabel
         }
 
         // Trailing icons

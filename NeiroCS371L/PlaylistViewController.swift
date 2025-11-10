@@ -9,24 +9,7 @@ import UIKit
 
 final class PlaylistViewController: UITableViewController {
 
-    // Demo data (TODO: swap with Firebase later)
     var playlists: [Playlist] = []
-        /*Playlist.demo,
-        Playlist(title: "Late Night Lo-Fi", emoji: "😴",
-                 songs: [
-                    Song(title: "Warmth", artist: "Keys of Moon", genre: "Lo-Fi", lengthSeconds: 214),
-                    Song(title: "Night Drive", artist: "Evoke", genre: "Lo-Fi", lengthSeconds: 189)
-                 ]),
-        Playlist(title: "Cardio Mix", emoji: "⚡️",
-                 songs: [
-                    Song(title: "Can’t Hold Us", artist: "Macklemore", genre: "Hip-Hop", lengthSeconds: 270),
-                    Song(title: "Titanium", artist: "David Guetta", genre: "EDM", lengthSeconds: 245),
-                    Song(title: "Stronger", artist: "Kanye West", genre: "Hip-Hop", lengthSeconds: 312)
-                 ]),
-    ]*/
-
-    init() { super.init(style: .plain) }
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     private static let df: DateFormatter = {
         let df = DateFormatter()
@@ -34,12 +17,44 @@ final class PlaylistViewController: UITableViewController {
         df.timeStyle = .short
         return df
     }()
+    
+    init() {
+        super.init(style: .plain)
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        setupNavigationBar()
+        setupTableView()
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        loadPlaylistsFromFirebase()
+        
+    }
+    
+    private func setupNavigationBar() {
         title = "Playlists"
         navigationController?.navigationBar.prefersLargeTitles = true
-
+        navigationItem.largeTitleDisplayMode = .always
+        
+        //add button on top right "+"
+        let addAction = UIAction(title: "Add Playlist") { [weak self] _ in
+            self?.addTapped()
+        }
+        let addItem = UIBarButtonItem(systemItem: .add, primaryAction: addAction)
+        addItem.accessibilityLabel = "Add Playlist"
+        
+        navigationItem.rightBarButtonItem  = addItem
+        navigationItem.rightBarButtonItems = [addItem]
+    }
+    
+    private func setupTableView() {
         view.backgroundColor = ThemeColor.Color.backgroundColor
 
         tableView.register(ListCell.self, forCellReuseIdentifier: "ListCell")
@@ -49,40 +64,41 @@ final class PlaylistViewController: UITableViewController {
         tableView.rowHeight = UITableView.automaticDimension
         tableView.contentInset = UIEdgeInsets(top: 12, left: 0, bottom: 24, right: 0)
 
-        // Top-right "+" button
-        let addAction = UIAction(title: "Add Playlist") { [weak self] _ in
-            self?.addTapped()
-        }
-        let addItem = UIBarButtonItem(systemItem: .add, primaryAction: addAction)
-        addItem.accessibilityLabel = "Add Playlist"
-
-        // Set both forms (some containers read one or the other)
-        navigationItem.rightBarButtonItem  = addItem
-        navigationItem.rightBarButtonItems = [addItem]
-
-        // (helps with visibility + layout)
-        navigationItem.largeTitleDisplayMode = .always
-
     }
     
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        loadPlaylistsFromFirebase()
-        
-    }
-    
+    //data loading of playlists from firebase
     private func loadPlaylistsFromFirebase() {
-           PlaylistLibrary.loadPlaylists{[weak self] success in
-               guard let self = self else {return}
-               if success {
-                   self.playlists = PlaylistLibrary.allPlaylists()
-                   self.tableView.reloadData()
-               } else {
-                   print("Failed to load playlists.")
-               }
-           }
-       }
-
+        PlaylistLibrary.loadPlaylists{[weak self] success in
+            guard let self = self else {return}
+            if success {
+                self.playlists = PlaylistLibrary.allPlaylists()
+                self.playlistGradients()
+                self.tableView.reloadData()
+            } else {
+                print("Failed to load playlists.")
+            }
+        }
+    }
+    
+    //set up gradients for playlist backgrounds
+    private func playlistGradients() {
+        for playlist in playlists where playlist.gradientColors == nil {
+            playlist.gradientColors = generateGradientColors(from: playlist.emoji)
+        }
+    }
+    
+    //generate gradient colors (UI purposes)
+    private func generateGradientColors(from emoji: String) -> [UIColor] {
+        let hash = emoji.hashValue
+        let firstHue = CGFloat((hash & 0xFF)) / 255.0
+        let secondHue = CGFloat(((hash >> 8) & 0xFF)) / 255.0
+        
+        let firstColor = UIColor(hue: firstHue, saturation: 0.6, brightness: 0.5, alpha: 1.0)
+        let secondColor = UIColor(hue: secondHue, saturation: 0.6, brightness: 0.3, alpha: 1.0)
+        
+        return [firstColor, secondColor]
+    }
+    
     private func addTapped() {
         let vc = CreatePlaylistViewController()
         vc.onCreate = { [weak self] playlist in
@@ -108,36 +124,33 @@ final class PlaylistViewController: UITableViewController {
                             cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let p = playlists[indexPath.row]
         let cell = tableView.dequeueReusableCell(withIdentifier: "ListCell", for: indexPath) as! ListCell
-
-        let date = Self.df.string(from: p.createdAt)
-        let info = "\(p.songCount) songs • \(p.formattedLength) • \(date)"
+        configureCell(cell, with: p, at: indexPath)
+        return cell
+    }
+    
+    private func configureCell(_ cell: ListCell, with playlist: Playlist, at indexPath: IndexPath) {
+        
+        let date = Self.df.string(from: playlist.createdAt)
+        let info = "\(playlist.songCount) songs • \(playlist.formattedLength) • \(date)"
 
         let pencil = UIImage(systemName: "pencil")
         let xmark  = UIImage(systemName: "xmark")
 
         cell.configure(
             image: nil,
-            emoji: p.emoji,
-            title: p.title,
+            emoji: playlist.emoji,
+            title: playlist.title,
             subtitle: info,
+            gradientColors: playlist.gradientColors,
             trailingTopImage: pencil,
-            trailingTopTap: { [weak self, weak tableView, weak cell] in
-                guard let self,
-                      let tableView,
-                      let cell = cell,
-                      let tappedIndexPath = tableView.indexPath(for: cell) else { return }
-                self.changePlaylistName(at: tappedIndexPath)
+            trailingTopTap: { [weak self] in
+                self?.changePlaylistName(at: indexPath)
             },
             trailingBottomImage: xmark,
-            trailingBottomTap: { [weak self, weak tableView, weak cell] in
-                guard let self,
-                      let tableView,
-                      let cell = cell,
-                      let tappedIndexPath = tableView.indexPath(for: cell) else { return }
-                self.deletePlaylist(at: tappedIndexPath)
+            trailingBottomTap: { [weak self] in
+                self?.deletePlaylist(at: indexPath)
             }
         )
-        return cell
     }
 
 
@@ -162,30 +175,30 @@ final class PlaylistViewController: UITableViewController {
 
     // MARK: TODO - firebase integration
     func changePlaylistName(at indexPath: IndexPath) {
-        let current = playlists[indexPath.row]
+        let playlist = playlists[indexPath.row]
         let alert = UIAlertController(title: "Rename Playlist",
                                       message: nil,
                                       preferredStyle: .alert)
+        
         alert.addTextField { tf in
             tf.placeholder = "Playlist name"
-            tf.text = current.title
+            tf.text = playlist.title
             tf.clearButtonMode = .whileEditing
             tf.autocapitalizationType = .words
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
-        alert.addAction(UIAlertAction(title: "Save", style: .default, handler: { [weak self] _ in
-            guard let self else { return }
-            let newTitle = alert.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            guard !newTitle.isEmpty, newTitle != current.title else { return }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            guard let newTitle = alert.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !newTitle.isEmpty else { return}
 
-            var updatedPlaylist = current
-            updatedPlaylist.title = newTitle
-            PlaylistLibrary.updatePlaylist(updatedPlaylist) { [weak self] success in
+            playlist.title = newTitle
+            PlaylistLibrary.updatePlaylist(playlist) { [weak self] success in
                 if success {
                     self?.loadPlaylistsFromFirebase()
                 }
             }
-        }))
+        })
         present(alert, animated: true)
     }
     
@@ -196,27 +209,15 @@ final class PlaylistViewController: UITableViewController {
             message: "This will remove the playlist from your list.",
             preferredStyle: .alert
         )
-        ac.addAction(UIAlertAction(title: "Delete", style: .destructive, handler: { [weak self] _ in
-            guard let self else { return }
+        ac.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        ac.addAction(UIAlertAction(title: "Delete", style: .destructive) { [weak self] _ in
+            guard let self = self else { return }
             PlaylistLibrary.removePlaylist(playlist) { [weak self] success in
                 if success {
-                    DispatchQueue.main.async {
-                        self?.loadPlaylistsFromFirebase()
-                    }
-                } else {
-                    print("Failed to delete playlist.")
+                    self?.loadPlaylistsFromFirebase()
                 }
             }
-        }))
-        ac.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        })
         present(ac, animated: true)
-    }
-    
-    func addPlaylist(_ new: Playlist) {
-        PlaylistLibrary.addPlaylist(new) { [weak self] success in
-            if success {
-                self?.loadPlaylistsFromFirebase()
-            }
-        }
     }
 }

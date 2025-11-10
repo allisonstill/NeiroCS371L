@@ -12,10 +12,11 @@ final class PlaylistDetailViewController: UIViewController {
 
     var playlist: Playlist!
     var onSave: ((Playlist) -> Void)?
+    var isNewPlaylist: Bool = false
+    
     private var tableView = UITableView()
     private var player: AVPlayer?
     private var currentlyPlayingIndex: IndexPath?
-    var isNewPlaylist: Bool = false
     private var playbackObserver: Any?
     
     private let headerView = UIView()
@@ -28,29 +29,24 @@ final class PlaylistDetailViewController: UIViewController {
     private let updateButton = UIButton(type: .system)
     private let exportButton = UIButton(type: .system)
     private let exportBlurView = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
-    
-    //private var tableBottomConstraint: NSLayoutConstraint!
-    //private let saveButton = UIButton(type: .system)
-    
     private let activityIndicator = UIActivityIndicatorView(style: .medium)
     
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        //title = playlist.title
         view.backgroundColor = ThemeColor.Color.backgroundColor
-        
-        navigationItem.leftBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "chevron.left"), style: .plain, target: self, action: #selector(backTapped))
-        navigationItem.leftBarButtonItem?.tintColor = .white
-        
-        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .action, target: self, action: #selector(shareTapped))
-        
+        setupNavigationBar()
         configureHeader()
         configureUpdateButton()
         configureTableView()
         configureExportButton()
-        
-
+    
         if isNewPlaylist{
             showNewPlaylistAlert()
         }
@@ -61,13 +57,36 @@ final class PlaylistDetailViewController: UIViewController {
         gradientView.frame = headerView.bounds
     }
     
+    deinit {
+        stopPlayback()
+    }
+    
+    private func setupNavigationBar() {
+        navigationItem.leftBarButtonItem = UIBarButtonItem(
+            image: UIImage(systemName: "chevron.left"),
+            style: .plain,
+            target: self,
+            action: #selector(backTapped))
+    
+        navigationItem.leftBarButtonItem?.tintColor = .white
+        
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            barButtonSystemItem: .action,
+            target: self,
+            action: #selector(shareTapped)
+        )
+    }
+    
     private func configureHeader() {
         headerView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(headerView)
         
         //adding gradient background
-        let colors = generateGradientColors(from: playlist.emoji)
-        gradientView.colors = colors.map {$0.cgColor}
+        let displayColors = playlist.gradientColors ?? generateGradientColors(from: playlist.emoji)
+        if playlist.gradientColors == nil {
+            playlist.gradientColors = displayColors
+        }
+        gradientView.colors = displayColors.map {$0.cgColor}
         gradientView.startPoint = CGPoint(x: 0, y: 0)
         gradientView.endPoint = CGPoint(x: 1, y: 1)
         headerView.layer.insertSublayer(gradientView, at: 0)
@@ -84,39 +103,7 @@ final class PlaylistDetailViewController: UIViewController {
         rightContainer.translatesAutoresizingMaskIntoConstraints = false
         headerView.addSubview(rightContainer)
         
-        //playlist name
-        playlistNameLabel.translatesAutoresizingMaskIntoConstraints = false
-        playlistNameLabel.text = playlist.title
-        playlistNameLabel.font = .systemFont(ofSize: 24, weight: .bold)
-        playlistNameLabel.textColor = .white
-        playlistNameLabel.numberOfLines = 2
-        rightContainer.addSubview(playlistNameLabel)
-        
-        //features label
-        featuresLabel.translatesAutoresizingMaskIntoConstraints = false
-        featuresLabel.text = "Features:"
-        featuresLabel.font = .systemFont(ofSize: 14, weight: .semibold)
-        featuresLabel.textColor = .white.withAlphaComponent(0.8)
-        rightContainer.addSubview(featuresLabel)
-        
-        //artists list
-        let arists = Array(Set(playlist.songs.compactMap {$0.artist})).prefix(3)
-        artistsLabel.translatesAutoresizingMaskIntoConstraints = false
-        artistsLabel.text = arists.isEmpty ? "Various Artists" : arists.joined(separator: ", ")
-        artistsLabel.font = .systemFont(ofSize: 13)
-        artistsLabel.textColor = .white.withAlphaComponent(0.9)
-        artistsLabel.numberOfLines = 2
-        rightContainer.addSubview(artistsLabel)
-        
-        //timestamp
-        timestampLabel.translatesAutoresizingMaskIntoConstraints = false
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        timestampLabel.text = "Created At: \(formatter.string(from: playlist.createdAt))"
-        timestampLabel.font = .systemFont(ofSize: 12)
-        timestampLabel.textColor = .white.withAlphaComponent(0.7)
-        rightContainer.addSubview(timestampLabel)
+        setupRightContainerHeader(in: rightContainer)
         
         NSLayoutConstraint.activate([
             
@@ -135,28 +122,67 @@ final class PlaylistDetailViewController: UIViewController {
             rightContainer.leadingAnchor.constraint(equalTo: emojiLabel.trailingAnchor, constant: 16),
             rightContainer.trailingAnchor.constraint(equalTo: headerView.trailingAnchor, constant: -20),
             rightContainer.centerYAnchor.constraint(equalTo: headerView.centerYAnchor),
-            
+  
+        ])
+    }
+    
+    private func setupRightContainerHeader(in container: UIView) {
+        //playlist name
+        playlistNameLabel.translatesAutoresizingMaskIntoConstraints = false
+        playlistNameLabel.text = playlist.title
+        playlistNameLabel.font = .systemFont(ofSize: 24, weight: .bold)
+        playlistNameLabel.textColor = .white
+        playlistNameLabel.numberOfLines = 2
+        container.addSubview(playlistNameLabel)
+        
+        //features label
+        featuresLabel.translatesAutoresizingMaskIntoConstraints = false
+        featuresLabel.text = "Features:"
+        featuresLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+        featuresLabel.textColor = .white.withAlphaComponent(0.8)
+        container.addSubview(featuresLabel)
+        
+        //artists list
+        let artists = Array(Set(playlist.songs.compactMap {$0.artist})).prefix(3)
+        artistsLabel.translatesAutoresizingMaskIntoConstraints = false
+        artistsLabel.text = artists.isEmpty ? "Various Artists" : artists.joined(separator: ", ")
+        if artists.count > 3 { artistsLabel.text! += ", and many more..." }
+        artistsLabel.font = .systemFont(ofSize: 13)
+        artistsLabel.textColor = .white.withAlphaComponent(0.9)
+        artistsLabel.numberOfLines = 2
+        container.addSubview(artistsLabel)
+        
+        //timestamp
+        timestampLabel.translatesAutoresizingMaskIntoConstraints = false
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        timestampLabel.text = "Created At: \(formatter.string(from: playlist.createdAt))"
+        timestampLabel.font = .systemFont(ofSize: 12)
+        timestampLabel.textColor = .white.withAlphaComponent(0.7)
+        container.addSubview(timestampLabel)
+        
+        NSLayoutConstraint.activate([
             //playlist name
-            playlistNameLabel.topAnchor.constraint(equalTo: rightContainer.topAnchor),
-            playlistNameLabel.leadingAnchor.constraint(equalTo: rightContainer.leadingAnchor),
-            playlistNameLabel.trailingAnchor.constraint(equalTo: rightContainer.trailingAnchor),
+            playlistNameLabel.topAnchor.constraint(equalTo: container.topAnchor),
+            playlistNameLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            playlistNameLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             
             //features label
             featuresLabel.topAnchor.constraint(equalTo: playlistNameLabel.bottomAnchor, constant: 12),
-            featuresLabel.leadingAnchor.constraint(equalTo: rightContainer.leadingAnchor),
-            featuresLabel.trailingAnchor.constraint(equalTo: rightContainer.trailingAnchor),
+            featuresLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            featuresLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             
             //artists label
             artistsLabel.topAnchor.constraint(equalTo: featuresLabel.bottomAnchor, constant: 4),
-            artistsLabel.leadingAnchor.constraint(equalTo: rightContainer.leadingAnchor),
-            artistsLabel.trailingAnchor.constraint(equalTo: rightContainer.trailingAnchor),
+            artistsLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            artistsLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             
             //timestamp label
             timestampLabel.topAnchor.constraint(equalTo: artistsLabel.bottomAnchor, constant: 8),
-            timestampLabel.leadingAnchor.constraint(equalTo: rightContainer.leadingAnchor),
-            timestampLabel.trailingAnchor.constraint(equalTo: rightContainer.trailingAnchor),
-            timestampLabel.bottomAnchor.constraint(lessThanOrEqualTo: rightContainer.bottomAnchor)
-            
+            timestampLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            timestampLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            timestampLabel.bottomAnchor.constraint(lessThanOrEqualTo: container.bottomAnchor)
         ])
     }
     
@@ -166,12 +192,10 @@ final class PlaylistDetailViewController: UIViewController {
         updateButton.titleLabel?.font = .systemFont(ofSize: 14, weight: .medium)
         updateButton.setTitleColor(.white, for: .normal)
         updateButton.backgroundColor = UIColor.white.withAlphaComponent(0.2)
-        updateButton.layer.cornerRadius = 16
-        updateButton.layer.borderWidth = 1
-        updateButton.layer.borderColor = UIColor.white.withAlphaComponent(0.3).cgColor
+        updateButton.layer.cornerRadius = 8
         updateButton.addTarget(self, action: #selector(updatePlaylistTapped), for: .touchUpInside)
-        view.addSubview(updateButton)
         
+        view.addSubview(updateButton)
         NSLayoutConstraint.activate([
             updateButton.topAnchor.constraint(equalTo: headerView.bottomAnchor, constant: 12),
             updateButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
@@ -183,12 +207,11 @@ final class PlaylistDetailViewController: UIViewController {
 
     private func configureTableView() {
         tableView.translatesAutoresizingMaskIntoConstraints = false
-        tableView.backgroundColor = .clear
+        tableView.backgroundColor = ThemeColor.Color.backgroundColor
         tableView.separatorStyle = .none
         tableView.dataSource = self
         tableView.delegate = self
         tableView.register(SongRow.self, forCellReuseIdentifier: "SongRow")
-        tableView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 100, right: 0)
         view.addSubview(tableView)
 
         NSLayoutConstraint.activate([
@@ -212,33 +235,15 @@ final class PlaylistDetailViewController: UIViewController {
         //export button
         exportButton.translatesAutoresizingMaskIntoConstraints = false
         exportButton.setTitle("Export to Spotify", for: .normal)
-        exportButton.setImage(UIImage(systemName: "square.and.arrow.up"), for: .normal)
-        exportButton.titleLabel?.font = .systemFont(ofSize: 16, weight: .semibold)
-        exportButton.setTitleColor(.white, for: .normal)
-        exportButton.tintColor = .white
-        exportButton.backgroundColor = UIColor.systemGreen.withAlphaComponent(0.9)
-        exportButton.layer.cornerRadius = 12
+        exportButton.setTitleColor(.systemGreen, for: .normal)
+        exportButton.titleLabel?.font = .systemFont(ofSize: 18, weight: .bold)
         exportButton.addTarget(self, action: #selector(exportTapped), for: .touchUpInside)
-        
-        if #available(iOS 15.0, *) {
-            var config = UIButton.Configuration.filled()
-            config.title = "Export to Spotify"
-            config.image = UIImage(systemName: "square.and.arrow.up")
-            config.baseBackgroundColor = UIColor.systemGreen.withAlphaComponent(0.9)
-            config.baseForegroundColor = .white
-            config.cornerStyle = .medium
-            config.imagePlacement = .leading
-            config.imagePadding = 8
-            config.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 20, bottom: 12, trailing: 20)
-            exportButton.configuration = config
-        }
-        
+        exportBlurView.contentView.addSubview(exportButton)
+
         activityIndicator.translatesAutoresizingMaskIntoConstraints = false
         activityIndicator.hidesWhenStopped = true
         activityIndicator.color = .white
         exportButton.addSubview(activityIndicator)
-        
-        exportBlurView.contentView.addSubview(exportButton)
         
         NSLayoutConstraint.activate([
             exportBlurView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -255,24 +260,6 @@ final class PlaylistDetailViewController: UIViewController {
             activityIndicator.centerYAnchor.constraint(equalTo: exportButton.centerYAnchor)
         ])
     }
-    /*
-    private func configureSaveButton() {
-            saveButton.translatesAutoresizingMaskIntoConstraints = false
-            saveButton.setTitle("Save Playlist", for: .normal)
-            saveButton.titleLabel?.font = .systemFont(ofSize: 18, weight: .semibold)
-            saveButton.setTitleColor(.white, for: .normal)
-            saveButton.backgroundColor = .systemBlue
-            saveButton.layer.cornerRadius = 12
-            saveButton.addTarget(self, action: #selector(saveTapped), for: .touchUpInside)
-
-            view.addSubview(saveButton)
-            NSLayoutConstraint.activate([
-                saveButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-                saveButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-                saveButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
-                saveButton.heightAnchor.constraint(equalToConstant: 50)
-            ])
-        }*/
     
     private func generateGradientColors(from emoji: String) -> [UIColor] {
         let hash = emoji.hashValue
@@ -301,192 +288,99 @@ final class PlaylistDetailViewController: UIViewController {
         
         SpotifyAPI.shared.searchTracks(query: query, limit: 1) { [weak self] result in
             
-            guard let self = self else {return}
-            DispatchQueue.main.async {
-                switch result {
-                case .success(let tracks):
-                    if let track = tracks.first, let previewURL = track.preview_url, let url = URL(string: previewURL) {
-                        
-                        self.player = AVPlayer(url: url)
-                        self.currentlyPlayingIndex = indexPath
-                        self.tableView.reloadRows(at: [indexPath], with: .none)
-                        
-                        self.observePlaybackEnd()
-                        self.player?.play()
-                    } else {
-                        self.playMockSound(for: song, at: indexPath)
-                    }
-                case .failure:
-                    self.playMockSound(for: song, at: indexPath)
+            switch result {
+            case .success(let tracks):
+                guard let track = tracks.first, let previewURL = track.preview_url else {
+                    print("There is no preview url")
+                    return
                 }
+                
+                DispatchQueue.main.async {
+                    self?.startPlayback(urlString: previewURL, at: indexPath)
+                }
+                
+            case .failure(let error):
+                print("Search didn't work: \(error)")
             }
-            
         }
-
     }
     
-    private func playMockSound(for song: Song, at indexPath: IndexPath) {
-        guard let soundURL = Bundle.main.url(forResource: "click", withExtension: "wav") else {
-            print("Simulating playback for \(song.title)")
-            currentlyPlayingIndex = indexPath
-            tableView.reloadData()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                self.currentlyPlayingIndex = nil
-                self.tableView.reloadRows(at: [indexPath], with: .none)
-            }
-            return
-        }
+    private func startPlayback(urlString: String, at indexPath: IndexPath) {
+        guard let url = URL(string: urlString) else {return}
         
-        player = AVPlayer(url: soundURL)
-        currentlyPlayingIndex = indexPath
-        tableView.reloadData()
-        
-        observePlaybackEnd()
+        player = AVPlayer(url: url)
         player?.play()
-    }
-    
-    @objc private func playerDidFinishPlaying() {
-        currentlyPlayingIndex = nil
-        tableView.reloadData()
-    }
-    
-    private func observePlaybackEnd() {
-        guard let player = player, let currentItem = player.currentItem else {return}
         
-        if let observer = playbackObserver {
-            NotificationCenter.default.removeObserver(observer)
-            playbackObserver = nil
-        }
+        currentlyPlayingIndex = indexPath
+        tableView.reloadRows(at: [indexPath], with: .none)
         
-        playbackObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: currentItem, queue: .main) { [weak self] _ in
-            self?.handlePlaybackEnd()
+        playbackObserver = player?.addPeriodicTimeObserver(forInterval: CMTime(seconds: 1, preferredTimescale: 1), queue: .main) { [weak self] time in
+            if time.seconds >= 30.0 {
+                self?.stopPlayback()
+            }
         }
     }
     
     private func stopPlayback() {
         player?.pause()
+        
+        if let observer = playbackObserver {
+            player?.removeTimeObserver(observer)
+            playbackObserver = nil
+        }
         player = nil
-        if let observer = playbackObserver {
-            NotificationCenter.default.removeObserver(observer)
-            playbackObserver = nil
-        }
         
         if let index = currentlyPlayingIndex {
             currentlyPlayingIndex = nil
             tableView.reloadRows(at: [index], with: .none)
-        }
-    }
-    
-    private func handlePlaybackEnd() {
-        if let index = currentlyPlayingIndex {
-            currentlyPlayingIndex = nil
-            tableView.reloadRows(at: [index], with: .none)
-        }
-        
-        if let observer = playbackObserver {
-            NotificationCenter.default.removeObserver(observer)
-            playbackObserver = nil
         }
     }
     
     @objc private func backTapped() {
         onSave?(playlist)
-        guard let nav = navigationController else {
-            dismiss(animated: true)
-            return
-        }
-        
-        if let viewControllers = nav.viewControllers as? [UIViewController] {
-            for vc in viewControllers.reversed() {
-                if vc is PlaylistViewController {
-                    nav.popToViewController(vc, animated: true)
-                    return
-                }
-            }
-        }
-        nav.popViewController(animated: true)
+        navigationController?.popViewController(animated: true)
     }
     
     @objc private func updatePlaylistTapped() {
         //TODO: fill this out to create a button to update the playlist!
     }
     
-    /*@objc private func saveTapped() {
-        let hadOnSave = (onSave != nil)
-        onSave?(playlist)
-
-        guard let nav = navigationController else { return }
-
-        // 1) If PlaylistVC is on the stack, handle that case
-        if let listVC = nav.viewControllers.compactMap({ $0 as? PlaylistViewController }).first {
-            if !hadOnSave { listVC.addPlaylist(playlist) }
-            nav.popToViewController(listVC, animated: true)
-            return
-        }
-
-        // 2) Normal case with the container as root
-        if let container = nav.viewControllers.first as? FloatingBarDemoViewController {
-            // find the existing child instance of PlaylistViewController
-            if let listVC = container.children.compactMap({ $0 as? PlaylistViewController }).first {
-                if !hadOnSave { listVC.addPlaylist(playlist) }
-                // pop all the way back to the container
-                nav.popToRootViewController(animated: true)
-                return
-            }
-        }
-
-        // 3) Fallback: just pop one level
-        nav.popViewController(animated: true)
-    }*/
-    
     @objc private func exportTapped() {
+        setExport(isExporting: true)
+        
         guard SpotifyUserAuthorization.shared.isConnected else {
             showAlert(title: "Not Connected", message: "Please connect Spotify account")
             return
         }
         
-        let alert = UIAlertController(title: "Export to Spotify", message: "This will create a new playlist in your Spotify account.", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Export", style: .default) { [weak self] _  in
-            
-            self?.performExport()
-        })
-        
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        present(alert, animated: true)
-    }
-    
-    private func performExport() {
-        exportButton.isEnabled = false
-        activityIndicator.startAnimating()
-        
-        SpotifyAPI.shared.exportPlaylist(playlist: playlist) { [weak self] result in
-            
+        SpotifyAPI.shared.exportPlaylist(playlist: playlist) {[weak self] result in
             DispatchQueue.main.async {
-                self?.exportButton.isEnabled = true
-                self?.activityIndicator.stopAnimating()
-                
-                switch result{
-                case .success(let url):
-                    self?.showExportSuccess(url: url)
-                    
-                case .failure(let error):
-                    self?.showAlert(title: "Export failed", message: error.localizedDescription)
-                }
+                self?.setExport(isExporting: false)
+                self?.performExport(result)
             }
         }
     }
     
-    private func showExportSuccess(url: String) {
-        let alert = UIAlertController(title: "Success", message: "Playlist was exported to Spotify", preferredStyle: .alert)
-        
-        alert.addAction(UIAlertAction(title: "Open in Spotify", style: .default) { _  in
-            if let spotifyURL = URL(string: url) {
-                UIApplication.shared.open(spotifyURL)
-            }
-        })
-        
-        alert.addAction(UIAlertAction(title: "OK", style: .cancel))
-        present(alert, animated: true)
+    private func setExport(isExporting: Bool) {
+        if isExporting {
+            activityIndicator.startAnimating()
+            exportButton.setTitle("Exporting...", for: .normal)
+            exportButton.isEnabled = false
+        } else {
+            activityIndicator.stopAnimating()
+            exportButton.setTitle("Export to Spotify", for: .normal)
+            exportButton.isEnabled = true
+        }
+    }
+    
+    private func performExport(_ result: Result<String, Error>) {
+        switch result {
+        case .success(let url):
+            showAlert(title: "Success", message: "Playlist was exported to Spotify at url: \(url)")
+                    
+        case .failure(let error):
+            showAlert(title: "Export failed", message: error.localizedDescription)
+        }
     }
     
     @objc private func shareTapped() {
@@ -499,19 +393,13 @@ final class PlaylistDetailViewController: UIViewController {
     }
     
     private func showNewPlaylistAlert() {
-        let alert = UIAlertController(title: "Playlist Created", message: "Your new playlist is ready!", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Got it!", style: .default))
-        present(alert, animated: true)
+        showAlert(title: "Playlist Created", message: "Your new playlist is ready!")
     }
     
     private func showAlert(title: String, message: String) {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default))
         present(alert, animated: true)
-    }
-    
-    deinit {
-        stopPlayback()
     }
 
 }
@@ -563,6 +451,8 @@ final class SongRow: UITableViewCell {
     private let titleLabel = UILabel()
     private let artistLabel = UILabel()
     private let playButton = UIButton(type: .system)
+    private let albumImageView = UIImageView()
+    
     var playHandler: (() -> Void)?
     var isPlaying: Bool = false {
         didSet {
@@ -573,60 +463,110 @@ final class SongRow: UITableViewCell {
 
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
-        selectionStyle = .none
-        backgroundColor = ThemeColor.Color.backgroundColor
         configureUI()
-        
-        layer.borderColor = UIColor.white.withAlphaComponent(0.3).cgColor
-        layer.borderWidth = 0.5
-        layer.cornerRadius = 10
-        layer.masksToBounds = true
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) not implemented") }
 
     private func configureUI() {
-        emojiLabel.font = .systemFont(ofSize: 26)
-        emojiLabel.text = "🎵"
-        emojiLabel.setContentHuggingPriority(.required, for: .horizontal)
-
-        titleLabel.font = .systemFont(ofSize: 17, weight: .semibold)
+        backgroundColor = .clear
+        contentView.backgroundColor = .clear
+        selectionStyle = .none
+        
+        //album image
+        albumImageView.translatesAutoresizingMaskIntoConstraints = false
+        albumImageView.contentMode = .scaleAspectFill
+        albumImageView.layer.cornerRadius = 8
+        albumImageView.clipsToBounds = true
+        albumImageView.backgroundColor = .systemGray5
+        contentView.addSubview(albumImageView)
+        
+        //labels stack
+        let stackV = UIStackView()
+        stackV.axis = .vertical
+        stackV.spacing = 4
+        stackV.translatesAutoresizingMaskIntoConstraints = false
+        
+        titleLabel.font = .systemFont(ofSize: 16, weight: .semibold)
         titleLabel.textColor = .white
+        titleLabel.numberOfLines = 1
 
-        artistLabel.font = .systemFont(ofSize: 14)
+        artistLabel.font = .systemFont(ofSize: 14, weight: .regular)
         artistLabel.textColor = .lightGray
+        artistLabel.numberOfLines = 1
+        
+        stackV.addArrangedSubview(titleLabel)
+        stackV.addArrangedSubview(artistLabel)
+        contentView.addSubview(stackV)
 
-        playButton.tintColor = .systemBlue
-        playButton.setContentHuggingPriority(.required, for: .horizontal)
-        playButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+        playButton.translatesAutoresizingMaskIntoConstraints = false
+        playButton.tintColor = .systemGreen
+        let config = UIImage.SymbolConfiguration(pointSize: 28, weight: .medium)
+        playButton.setImage(UIImage(systemName: "play.circle.fill", withConfiguration: config), for: .normal)
         playButton.addTarget(self, action: #selector(didTapPlay), for: .touchUpInside)
-
-        let textStack = UIStackView(arrangedSubviews: [titleLabel, artistLabel])
-        textStack.axis = .vertical
-        textStack.spacing = 2
-
-        // Flexible spacer pushes playButton to the right edge
-        let spacer = UIView()
-
-        let hStack = UIStackView(arrangedSubviews: [emojiLabel, textStack, spacer, playButton])
-        hStack.axis = .horizontal
-        hStack.alignment = .center
-        hStack.spacing = 12
-        hStack.translatesAutoresizingMaskIntoConstraints = false
-
-        contentView.addSubview(hStack)
+        contentView.addSubview(playButton)
+        
         NSLayoutConstraint.activate([
-            hStack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-            hStack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-            hStack.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 10),
-            hStack.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -10)
+            albumImageView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            albumImageView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+            albumImageView.widthAnchor.constraint(equalToConstant: 56),
+            albumImageView.heightAnchor.constraint(equalToConstant: 56),
+                        
+            stackV.leadingAnchor.constraint(equalTo: albumImageView.trailingAnchor, constant: 12),
+            stackV.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+            stackV.trailingAnchor.constraint(equalTo: playButton.leadingAnchor, constant: -12),
+                        
+            playButton.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+            playButton.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+            playButton.widthAnchor.constraint(equalToConstant: 44),
+            playButton.heightAnchor.constraint(equalToConstant: 44)
         ])
     }
 
 
     func configure(with song: Song) {
         titleLabel.text = song.title
-        artistLabel.text = song.artist
+        artistLabel.text = song.artist ?? "Unknown Artist"
+        
+        albumImageView.image = nil
+        albumImageView.backgroundColor = .systemGray5
+        
+        if let urlString = song.albumURL, !urlString.isEmpty, let url = URL(string: urlString) {
+            loadImage(from: url)
+        } else {
+            showPlaceholder()
+        }
+    }
+    
+    private func loadImage(from url: URL) {
+        albumImageView.contentMode = .scaleAspectFill
+        albumImageView.backgroundColor = .systemGray5
+        
+        URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
+            guard let self = self else {return}
+            
+            if error != nil {
+                DispatchQueue.main.async { self.showPlaceholder() }
+                return
+            }
+            
+            guard let data = data, let image = UIImage(data: data) else {
+                DispatchQueue.main.async { self.showPlaceholder() }
+                return
+            }
+            
+            DispatchQueue.main.async {
+                self.albumImageView.image = image
+                self.albumImageView.backgroundColor = .clear
+            }
+        }.resume()
+    }
+    
+    private func showPlaceholder() {
+        albumImageView.image = UIImage(systemName: "music.note")
+        albumImageView.tintColor = .systemGray
+        albumImageView.contentMode = .center
+        albumImageView.backgroundColor = .systemGray5
     }
 
     @objc private func didTapPlay() { playHandler?() }
