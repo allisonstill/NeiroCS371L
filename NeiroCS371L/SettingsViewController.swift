@@ -55,7 +55,7 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
 
     private let appearanceCard = UIView()
     private let appearanceTitle = UILabel()
-    private let appearanceSeg = UISegmentedControl(items: ["Dark", "Light"])
+    private let appearanceSeg = UISegmentedControl(items: ["System", "Dark", "Light"])
 
     private let lengthCard = UIView()
     private let lengthTitle = UILabel()
@@ -359,9 +359,21 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
     // MARK: - Actions
     @objc private func appearanceChanged() {
         // ["Dark","Light"] => index 0 is dark
-        let style = (appearanceSeg.selectedSegmentIndex == 1) ? "dark" : "light"
-        SessionStore.appearanceStyle = style
-        applyAppearance(style)
+        let choice: AppAppearance = {
+                switch appearanceSeg.selectedSegmentIndex {
+                case 1:
+                    let style = "light"
+                    SessionStore.appearanceStyle = style
+                    applyAppearance(style)
+                    return .light
+                case 2: return .dark
+                default: return .system
+                }
+            }()
+        ThemeManager.set(choice)
+        // let style = (appearanceSeg.selectedSegmentIndex == 1) ? "dark" : "light"
+        // SessionStore.appearanceStyle = style
+        // applyAppearance(style)
     }
 
     @objc private func lengthChanged() {
