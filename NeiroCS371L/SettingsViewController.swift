@@ -76,9 +76,9 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
     // MARK: - Lifecycle
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = ThemeColor.Color.backgroundColor
+        ThemeManager.applyToAllWindows()
         setupScroll()
-        buildHeader()
+        title = "Settings"
         buildProfile()
         buildAppearance()
         buildLength()
@@ -116,24 +116,6 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
             content.bottomAnchor.constraint(equalTo: scroll.bottomAnchor, constant: -24),
             content.widthAnchor.constraint(equalTo: scroll.widthAnchor, constant: -32)
         ])
-    }
-
-    private func buildHeader() {
-        stylizeCard(headerCard)
-        headerLabel.text = "Settings"
-        headerLabel.font = ThemeColor.Font.titleFont()
-        headerLabel.textColor = ThemeColor.Color.titleColor
-        headerLabel.textAlignment = .center
-
-        headerCard.addSubview(headerLabel)
-        headerLabel.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            headerLabel.topAnchor.constraint(equalTo: headerCard.topAnchor, constant: 18),
-            headerLabel.bottomAnchor.constraint(equalTo: headerCard.bottomAnchor, constant: -18),
-            headerLabel.leadingAnchor.constraint(equalTo: headerCard.leadingAnchor, constant: 16),
-            headerLabel.trailingAnchor.constraint(equalTo: headerCard.trailingAnchor, constant: -16)
-        ])
-        content.addArrangedSubview(headerCard)
     }
 
     private func buildProfile() {
