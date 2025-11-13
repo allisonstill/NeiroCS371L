@@ -379,7 +379,7 @@ class SpotifyUserAuthorization {
     private func notifyPasswordIssue(email: String) {
         guard let topVC = UIApplication.shared.windows.first?.rootViewController else { return }
         
-        let alert = UIAlertController(title: "Account Already Exists", message: "An account with this email already exists. Please use original password.", preferredStyle: .alert)
+        let alert = UIAlertController(title: "Account Already Exists", message: "An account with this email already exists. Please log in to Neiro with this email, try a different account, or reset your password.", preferredStyle: .alert)
         
         alert.addAction(UIAlertAction(title: "Send Password Reset Email", style: .default) { _ in
             self.sendPasswordResetEmail(email: email, presentingVC: topVC)
