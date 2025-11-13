@@ -11,6 +11,7 @@ class SpotifyAPI {
     static let shared = SpotifyAPI()
     private init() {}
     
+    
     //base url for API
     private let baseURL = "https://api.spotify.com/v1"
     
