@@ -141,10 +141,14 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
     private func createTextField(_ field: UITextField, placeholder: String) {
         field.placeholder = placeholder
         field.font = .systemFont(ofSize: 14)
-        field.backgroundColor = .white
-        field.layer.cornerRadius = 6.0
+        field.backgroundColor = UIColor.systemGray5
+        field.layer.borderColor = ThemeColor.Color.titleOutline.cgColor
+        field.layer.borderWidth = 1.5
+        field.layer.cornerRadius = 10
         field.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 10, height: 34))
         field.leftViewMode = .always
+        field.autocapitalizationType = .none
+        field.autocorrectionType = .no
         view.addSubview(field)
     }
 
