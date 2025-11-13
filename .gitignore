@@ -26,4 +26,6 @@ Carthage/Build/
 *.key
 
 GoogleService-Info.plist
+LocalFixes.swift
 
+NeiroCS371L/GoogleService-Info.plist
