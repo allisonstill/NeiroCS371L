@@ -42,18 +42,37 @@ final class PlaylistViewController: UITableViewController {
         title = "Playlist History"
         navigationController?.navigationBar.prefersLargeTitles = true
         navigationItem.largeTitleDisplayMode = .always
-
+        
         // we have three options: pick emoji, random, describe
-        // only pick emoji is implemented
-        // TODO: implement random, describe with LLM
+        //go to createPlaylistVC (select one emoji)
         let pickEmoji = UIAction(title: "Pick Emoji to Create", image: UIImage(systemName: "faceid")) { [weak self] _ in
-            self?.presentCreatePicker(mode: .emojiPicker)
+            let vc = CreatePlaylistViewController()
+            vc.onCreate = { [weak self] playlist in
+                self?.loadPlaylistsFromFirebase()
+                
+            }
+            self?.navigationController?.pushViewController(vc, animated: true)
         }
-        let random = UIAction(title: "Random Playlist", image: UIImage(systemName: "shuffle")) { _ in
+        
+        //go to randomVC
+        let random = UIAction(title: "Random Playlist", image: UIImage(systemName: "shuffle")) { [weak self] _ in
+            let vc = RandomEmojiViewController()
+            vc.onCreate = { [weak self] playlist in
+                self?.loadPlaylistsFromFirebase()
+                
+            }
+            self?.navigationController?.pushViewController(vc, animated: true)
         }
-        let describe = UIAction(title: "Describe Playlist", image: UIImage(systemName: "text.bubble")) { _ in
+        //go to describeVC
+        let describe = UIAction(title: "Describe Playlist", image: UIImage(systemName: "text.bubble")) { [weak self] _ in
+            let vc = DescribeLLMViewController()
+            vc.onCreate = { [weak self] playlist in
+                self?.loadPlaylistsFromFirebase()
+                
+            }
+            self?.navigationController?.pushViewController(vc, animated: true)
+            
         }
-
         // set up three option menu from '+' button
         let menu = UIMenu(title: "", children: [pickEmoji, random, describe])
         let addItem = UIBarButtonItem(systemItem: .add)
@@ -61,23 +80,6 @@ final class PlaylistViewController: UITableViewController {
         navigationItem.rightBarButtonItem = addItem
     }
 
-    private enum CreateMode { case emojiPicker }// TODO: implement random, LLM
-
-    // decides what options user has based on the method of adding a playlist they have selected: pick emoji, random, describe
-    //TODO: implement random, LLM
-    private func presentCreatePicker(mode: CreateMode) {
-        let vc = CreatePlaylistViewController()
-        vc.prefersExplicitCreate = true // only choose emoji is implemented rn
-        
-        //mark new playlist as last opened
-        vc.onCreate = { [weak self] playlist in
-            PlaylistLibrary.setLastOpened(playlist)
-            NotificationCenter.default.post(name: .lastOpenedPlaylistDidChange, object: nil)
-            self?.loadPlaylistsFromFirebase()
-        }
-
-        navigationController?.pushViewController(vc, animated: true)
-    }
 
     
     private func setupTableView() {

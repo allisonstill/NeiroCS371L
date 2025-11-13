@@ -12,13 +12,8 @@ final class CreatePlaylistViewController: UIViewController {
     // Callback to return a new playlist to the list VC
     var onCreate: ((Playlist) -> Void)?
     
-    // flags for how to add a new playlist
-    var prefersExplicitCreate: Bool = false
-    
     // adding new playlist button (to gray out)
     private let createButton = UIButton(type: .system)
-    private var randomButton: UIButton!
-    private var describeButton: UIButton!
 
     // Easily editable emoji set
     var emojis: [String] = ["😀","😎","🥲","😭",
@@ -43,29 +38,6 @@ final class CreatePlaylistViewController: UIViewController {
         super.viewWillAppear(animated)
         checkSpotifyConnection()
     }
-    
-    //tap and untap an emoji
-    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        let emoji = emojis[indexPath.item]
-        
-        //deselect the current emoji
-        selectedEmoji = (selectedEmoji == emoji ? nil : emoji)   // toggle
-        collectionView.reloadData()
-        applySelectionUIState()
-    }
-
-    private func applySelectionUIState() {
-        let hasEmoji = (selectedEmoji != nil)
-        createButton.isEnabled = prefersExplicitCreate ? hasEmoji : true
-        createButton.alpha = createButton.isEnabled ? 1.0 : 0.6
-
-        // Grey out alternative creation paths when emoji is chosen
-        let dim: CGFloat = hasEmoji ? 0.4 : 1.0
-        [randomButton, describeButton].forEach {
-            $0?.isEnabled = !hasEmoji
-            $0?.alpha = dim
-        }
-    }
 
 
     private func setupCollection() {
@@ -86,46 +58,34 @@ final class CreatePlaylistViewController: UIViewController {
             collectionView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
             collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            collectionView.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.45)
+            collectionView.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.6) // updated to take up more space now that we only have one button
         ])
     }
 
+    //only button is for creating the playlist based on a single emoji
     private func setupButtons() {
+        var config = UIButton.Configuration.filled()
+        config.title = "Create Playlist"
+        config.baseBackgroundColor = .systemBlue
+        config.baseForegroundColor = .white
+        config.cornerStyle = .medium
+        config.contentInsets = NSDirectionalEdgeInsets(top: 14, leading: 20, bottom: 14, trailing: 20)
+        createButton.configuration = config
+        createButton.isEnabled = true
         
-        //TODO: implement functionality for random playlist mood
-        //select a random emoji to make a playlist
-        let makeRandom = primaryButton("Select Random Playlist Mood")
-        randomButton = makeRandom
-        makeRandom.addTarget(self, action: #selector(randomTapped), for: .touchUpInside)
-
-        //TODO: implement functionality for describe playlist
-        //button to describe a playlist in words to create
-        let describe = secondaryButton("Describe Your Own Playlist")
-        describeButton = describe
-        describe.addTarget(self, action: #selector(describeTapped), for: .touchUpInside)
-
-        // Create button -- select emoji and create playlist
-        createButton.setTitle("Create Playlist", for: .normal)
-        createButton.isEnabled = !prefersExplicitCreate
+        //will be shown when the user has selected an emoji
+        createButton.isHidden = true
         createButton.addTarget(self, action: #selector(createTapped), for: .touchUpInside)
-        createButton.layer.cornerRadius = 12
-        createButton.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.9)
-        createButton.setTitleColor(.white, for: .normal)
-        createButton.heightAnchor.constraint(equalToConstant: 48).isActive = true
-
-        let stack = UIStackView(arrangedSubviews: [makeRandom, describe, createButton])
-        stack.axis = .vertical
-        stack.spacing = 12
-        stack.alignment = .fill
-
-        view.addSubview(stack)
-        stack.translatesAutoresizingMaskIntoConstraints = false
+        createButton.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(createButton)
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: collectionView.bottomAnchor, constant: 20),
-            stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16)
+            createButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -24),
+            createButton.leadingAnchor.constraint(equalTo:view.leadingAnchor, constant: 24),
+            createButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+            createButton.heightAnchor.constraint(equalToConstant: 50)
         ])
     }
+    
     
     //create button was pressed (pick an emoji to generate a playlist)
     @objc private func createTapped() {
@@ -133,21 +93,20 @@ final class CreatePlaylistViewController: UIViewController {
             showAlert(title: "Pick an emoji", message: "Choose a mood to create a playlist.")
             return
         }
+        
+        //show existing playlist if the same emoji is selected
+        if let existing = PlaylistGenerator.shared.existingPlaylist(for: emoji) {
+            let detailVC = PlaylistDetailViewController()
+            detailVC.playlist = existing
+            detailVC.isNewPlaylist = true
+            navigationController?.pushViewController(detailVC, animated: true)
+            return
+        }
+        
         // Generate a playlist based on this emoji
         generatePlaylistFromSpotify(for: emoji)
     }
     
-    //TODO: implement describe playlist
-    @objc private func describeTapped() {
-        // placeholder for text/AI prompt integration later
-        showAlert(title: "Coming Soon", message: "Not yet implemented.")
-    }
-    
-    //TODO: implement random choosing
-    @objc private func randomTapped() {
-        showAlert(title: "Coming Soon", message: "Not yet implemented.")
-    }
-
     private func setupActivityIndicator() {
         activityIndicator.translatesAutoresizingMaskIntoConstraints = false
         activityIndicator.hidesWhenStopped = true
@@ -160,52 +119,9 @@ final class CreatePlaylistViewController: UIViewController {
         ])
         
     }
-
-    private func primaryButton(_ title: String) -> UIButton {
-        let button = UIButton(type: .system)
-        
-        if #available(iOS 15.0, *) {
-            var config = UIButton.Configuration.filled()
-            config.title = title
-            config.baseBackgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.8)
-            config.baseForegroundColor = .label
-            config.cornerStyle = .medium
-            config.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 14)
-            config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
-                var attrs = incoming
-                attrs.font = .systemFont(ofSize: 16, weight: .semibold)
-                return attrs
-            }
-            button.configuration = config
-            button.layer.cornerRadius = 12
-            button.layer.masksToBounds = true
-        } else {
-            button.setTitle(title, for: .normal)
-            button.titleLabel?.font = .systemFont(ofSize: 16, weight: .semibold)
-            button.backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.8)
-            button.layer.cornerRadius = 12
-            button.contentEdgeInsets = UIEdgeInsets(top: 12, left: 14, bottom: 12, right: 14)
-        }
-        return button
-    }
-
-    private func secondaryButton(_ title: String) -> UIButton {
-        let b = primaryButton(title)
-        
-        if #available(iOS 15.0, *) {
-            if var config = b.configuration {
-                config.baseBackgroundColor = UIColor.tertiarySystemBackground.withAlphaComponent(0.7)
-                b.configuration = config
-            }
-        } else {
-            b.backgroundColor = UIColor.tertiarySystemBackground.withAlphaComponent(0.7)
-        }
-        return b
-    }
     
     private func checkSpotifyConnection() {
-        guard !SpotifyUserAuthorization.shared.isConnected else { return }
-        showAlert(title: "Connect Spotify", message: "To generate playlists, please connect Spotify account!")
+        PlaylistGenerator.checkSpotifyConnection(on: self)
     }
 
     // MARK: Actions
@@ -216,121 +132,44 @@ final class CreatePlaylistViewController: UIViewController {
             return
         }
         
-        //check if playlist already exists
-        let existingPlaylists = PlaylistLibrary.playlists(for: emoji)
-        if let existing = existingPlaylists.first {
-            navigateToPlaylistDetail(playlist: existing, isNew: true)
-            return
+        //show create button
+        UIView.animate(withDuration: 0.3){
+            self.createButton.isHidden = false
         }
-
-        //generate new playlist
-        generatePlaylistFromSpotify(for: emoji)
     }
     
     
     
     private func generatePlaylistFromSpotify(for emoji: String) {
-        guard SpotifyUserAuthorization.shared.isConnected else {
-            showAlert(title: "Not Connected", message: "Please Connect Spotify Account.")
-            return
-        }
+        guard PlaylistGenerator.checkSpotifyConnection(on: self) else {return}
         
-        activityIndicator.startAnimating()
-        view.isUserInteractionEnabled = false
         
-        // get settings from Spotify Settings
-        let settings = SpotifySettings.shared
-        let targetCount = settings.playlistLength.songCount
-        let excludedGenres = settings.excludedGenres
-        
-        SpotifyAPI.shared.generatePlaylist(
-            for: emoji,
-            targetSongCount: targetCount,
-            excludedGenres: excludedGenres) { [weak self] result in
-            DispatchQueue.main.async {
-                self?.activityIndicator.stopAnimating()
-                self?.view.isUserInteractionEnabled = true
-                
-                self?.handlePlaylistGenerationRes(result, emoji: emoji)
-            }
-        }
-    }
-    
-    private func handlePlaylistGenerationRes(_ result: Result<[Song], Error>, emoji: String) {
-        switch result {
-        case .success(let songs):
-            createAndShowPlaylist(emoji: emoji, songs: songs)
-        case .failure(let error):
-            showAlert(title: "Error", message: "Didn't generate playlist: \(error.localizedDescription)")
-        }
-    }
-    
-    private func createAndShowPlaylist(emoji: String, songs: [Song]) {
-        let playlistName = getPlaylistName(for: emoji)
-        let gradientColors = generateGradientColors(from: emoji)
-        let playlist = Playlist(
-            title: playlistName,
-            emoji: emoji,
-            createdAt: Date(),
-            songs: songs,
-            gradientColors: gradientColors
-        )
-        
-        PlaylistLibrary.addPlaylist(playlist) { [weak self] success in
-            DispatchQueue.main.async {
-                if success {
-                    print("Playlist added and saved to Firebase")
-                    self?.onCreate?(playlist)
-                }
-                
-                self?.navigateToPlaylistDetail(playlist: playlist, isNew: true)
-                
-                if SpotifySettings.shared.autoExportToSpotify {
-                    self?.exportToSpotify(playlist: playlist)
-                }
-            }
-        }
-    }
-    
-    private func navigateToPlaylistDetail(playlist: Playlist, isNew: Bool) {
-        let detailVC = PlaylistDetailViewController()
-        detailVC.playlist = playlist
-        detailVC.isNewPlaylist = isNew
-        navigationController?.pushViewController(detailVC, animated: true)
-    }
-    
-    //generate gradient colors (UI purposes)
-    private func generateGradientColors(from emoji: String) -> [UIColor] {
-        let hash = emoji.hashValue
-        let firstHue = CGFloat((hash & 0xFF)) / 255.0
-        let secondHue = CGFloat(((hash >> 8) & 0xFF)) / 255.0
-        
-        let firstColor = UIColor(hue: firstHue, saturation: 0.6, brightness: 0.5, alpha: 1.0)
-        let secondColor = UIColor(hue: secondHue, saturation: 0.6, brightness: 0.3, alpha: 1.0)
-        
-        return [firstColor, secondColor]
-    }
-    
-    //TODO: generate playlist names based on the emoji
-    private func getPlaylistName(for emoji: String) -> String {
-        return "New \(emoji) Playlist"
-    }
-    
-    private func exportToSpotify(playlist: Playlist) {
-        activityIndicator.startAnimating()
-        
-        SpotifyAPI.shared.exportPlaylist(playlist: playlist) { [weak self] result in
+        PlaylistGenerator.shared.generatePlaylistFromSpotify(for: emoji, activityIndicator: activityIndicator, on: self) { [weak self] result in
             
-            DispatchQueue.main.async {
-                self?.activityIndicator.stopAnimating()
+            guard let self = self else {return}
+            
+            switch result {
+            case .success(let playlist):
+                self.saveAndShowPlaylist(playlist)
                 
-                switch result {
-                case .success(let url):
-                    print("Playlist exported to \(url)")
-                case .failure(let error):
-                    print("Export failed: \(error.localizedDescription)")
-                }
+            case .failure(let error):
+                PlaylistGenerator.showAlert(on: self, title: "Error", message: "We were not able to generate a playlist: \(error.localizedDescription)")
             }
+        }
+    }
+    
+    private func saveAndShowPlaylist(_ playlist: Playlist) {
+        PlaylistGenerator.shared.savePlaylist(playlist, activityIndicator: activityIndicator) { [weak self] success in
+        
+            guard let self = self else {return}
+            if success {
+                self.onCreate?(playlist)
+            }
+            let detailVC = PlaylistDetailViewController()
+            detailVC.playlist = playlist
+            detailVC.isNewPlaylist = true
+            self.navigationController?.pushViewController(detailVC, animated: true)
+            
         }
     }
     
@@ -360,6 +199,18 @@ extension CreatePlaylistViewController: UICollectionViewDelegateFlowLayout, UICo
         let spacing: CGFloat = 12 * (columns + 1)
         let width = (collectionView.bounds.width - spacing) / columns
         return CGSize(width: width, height: width)
+    }
+    
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        let emoji = emojis[indexPath.item]
+        if selectedEmoji == emoji {
+            selectedEmoji = nil
+            createButton.isHidden = true
+        } else {
+            selectedEmoji = emoji
+            handleEmojiSelection(emoji)
+        }
+        collectionView.reloadData()
     }
 }
 
