@@ -384,10 +384,41 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
     }
 
     @objc private func changePhotoTapped() {
-        let picker = UIImagePickerController()
-        picker.sourceType = .photoLibrary
-        picker.delegate = self
-        present(picker, animated: true)
+//        let picker = UIImagePickerController()
+//        picker.sourceType = .photoLibrary
+//        picker.delegate = self
+//        present(picker, animated: true)
+        let sheet = UIAlertController(title: "Profile Photo", message: "Choose a source", preferredStyle: .actionSheet)
+
+        // Camera
+        let camera = UIAlertAction(title: "Take Photo", style: .default) { [weak self] _ in
+            guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+                self?.showAlert(title: "Camera Unavailable", message: "This device has no camera.")
+                return
+            }
+            let picker = UIImagePickerController()
+            picker.sourceType = .camera
+            picker.cameraCaptureMode = .photo
+            picker.allowsEditing = true
+            picker.delegate = self
+            self?.present(picker, animated: true)
+        }
+        sheet.addAction(camera)
+
+        // Photo Library
+        let library = UIAlertAction(title: "Choose from Library", style: .default) { [weak self] _ in
+            let picker = UIImagePickerController()
+            picker.sourceType = .photoLibrary
+            picker.allowsEditing = true
+            picker.delegate = self
+            self?.present(picker, animated: true)
+        }
+        sheet.addAction(library)
+
+        // Cancel
+        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        
+        present(sheet, animated: true)
     }
     
     @objc private func connectSpotifyTapped() {
