@@ -12,8 +12,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
                options connectionOptions: UIScene.ConnectionOptions) {
         guard let windowScene = (scene as? UIWindowScene) else { return }
         let window = UIWindow(windowScene: windowScene)
-        ThemeManager.applyToAllWindows()
         self.window = window
+        ThemeManager.applyToAllWindows()
 
         if Auth.auth().currentUser != nil {
             //showMainApp(animated: false)
