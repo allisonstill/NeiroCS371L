@@ -70,8 +70,8 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
 
     // MARK: - Demo helpers
     func demoCreds() {
-        emailField.text = "test123@gmail.com"
-        passwordField.text = "admin1234"
+        emailField.text = "neiro.test.user@gmail.com"
+        passwordField.text = "neiro.test.user1!"
     }
 
     @objc private func fillDemo() { demoCreds() }
@@ -283,6 +283,8 @@ class LoginViewController: UIViewController, UITextFieldDelegate {
                 showAlert(title: "Login Failed", message: "\(error.localizedDescription)")
             
             }
+        } else {
+            showAlert(title: "Login Failed", message: "\(error.localizedDescription)")
         }
     }
     
