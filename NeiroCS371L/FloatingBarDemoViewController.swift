@@ -15,7 +15,7 @@ final class FloatingBarDemoViewController: UIViewController {
     private var currentChild: UIViewController?    
     private lazy var homeVC = HomePlaylistViewController()
     private lazy var historyVC = PlaylistViewController()
-    private lazy var groupVC = SimplePlaceholderVC(title: "Group")
+    private lazy var groupVC = GroupHomeViewController()
     private lazy var settingsVC = SettingsViewController()
 
     override func viewDidLoad() {
