@@ -121,22 +121,28 @@ class PlaylistLibrary {
     
     //update playlist
     static func updatePlaylist(_ playlist: Playlist, completion: ((Bool) -> Void)? = nil) {
-        if let index = shared.playlists.firstIndex(where: {$0.id == playlist.id}) {
-            shared.playlists[index] = playlist
-        }
         
+        if let index = shared.playlists.firstIndex(where: { $0.id == playlist.id }) {
+            shared.playlists.remove(at: index)
+        }
+
+        shared.playlists.insert(playlist, at: 0)
+
+        // save as last opened
+        UserDefaults.standard.set(playlist.id.uuidString, forKey: RecentKeys.lastOpenedID)
+
         SpotifyPlaylistFirestore.shared.updatePlaylist(playlist) { result in
             switch result {
             case .success:
                 print("Playlist updated in Firebase")
                 completion?(true)
             case .failure(let error):
-                print("Failed to update playlist in Firebase \(error.localizedDescription)")
+                print("Failed to update playlist in Firebase: \(error.localizedDescription)")
                 completion?(false)
             }
         }
     }
-    
+
     static func clearLocal() {
         shared.playlists.removeAll()
         print("Local playlists cleared")
