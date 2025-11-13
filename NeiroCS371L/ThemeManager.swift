@@ -19,8 +19,9 @@ enum ThemeManager {
     static var current: AppAppearance {
         if let raw = UserDefaults.standard.string(forKey: key),
            let v = AppAppearance(rawValue: raw) { return v }
-        return .system
+        return .dark
     }
+
 
     static func set(_ appearance: AppAppearance) {
         UserDefaults.standard.set(appearance.rawValue, forKey: key)

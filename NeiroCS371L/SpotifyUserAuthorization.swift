@@ -31,6 +31,7 @@ class SpotifyUserAuthorization {
     private let spotifyUserIDKey = "spotify_user_id"
     private let spotifyEmailKey = "spotify_user_email"
     private let firebasePasswordKey = "spotify_firebase_password"
+    private let lastSpotifyUserIDKey = "spotify_last_user_id"
     
     // is the Spotify account connected
     var isConnected: Bool {
@@ -198,9 +199,22 @@ class SpotifyUserAuthorization {
             let spotifyID = json["id"] as? String ?? UUID().uuidString
             let email = json["email"] as? String
             
+            //get user info from firebase
+            let firebaseUser = Auth.auth().currentUser
+            let firebaseEmail = firebaseUser?.email
+            
+            //logged-in email and new spotify email don't match
+            if let appEmail = firebaseEmail, let spotifyEmail = email, appEmail.lowercased() != spotifyEmail.lowercased() {
+                DispatchQueue.main.async {
+                    self.presentSpotifyAccountAlert(neiroEmail: appEmail, spotifyEmail: spotifyEmail, displayName: displayName, spotifyID: spotifyID, email: email, completion: completion)
+                }
+                return
+            }
+            
             //store user info
             UserDefaults.standard.set(displayName, forKey: self.userNameKey)
             UserDefaults.standard.set(spotifyID, forKey: self.spotifyUserIDKey)
+            UserDefaults.standard.set(spotifyID, forKey: self.lastSpotifyUserIDKey)
             if let email = email {
                 UserDefaults.standard.set(email, forKey: self.spotifyEmailKey)
             }
@@ -308,10 +322,64 @@ class SpotifyUserAuthorization {
         }
     }
     
+    //alert to ask user what to do if spotify account wasn't the same as the logged in neiro account
+    private func presentSpotifyAccountAlert(neiroEmail: String, spotifyEmail: String, displayName: String, spotifyID: String, email: String?, completion: @escaping (Bool) -> Void) {
+        
+        //use new account if alert isn't working
+        guard let topVC = UIApplication.shared.windows.first?.rootViewController else {
+            UserDefaults.standard.set(displayName, forKey: self.userNameKey)
+            UserDefaults.standard.set(spotifyID, forKey: self.spotifyUserIDKey)
+            UserDefaults.standard.set(spotifyID, forKey: self.spotifyUserIDKey)
+            
+            if let email = email {
+                UserDefaults.standard.set(email, forKey: self.spotifyEmailKey)
+            }
+            
+            if self.isSignupFlow {
+                self.createFirebaseAccount(spotifyID: spotifyID, email: email, displayName: displayName, completion: completion)
+            } else {
+                completion(true)
+            }
+            return
+        }
+        
+        //message alerting user of the error
+        let message = "You were previously logged into Neiro as \(neiroEmail), but you connected to spotify as \(spotifyEmail). Would you like to link this Spotify account to this Neiro user?"
+        
+        let alert = UIAlertController(title: "Link Spotify Account?", message: message, preferredStyle: .alert)
+        
+        //cancel, we don't want to connect to spotify now
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
+            self.disconnect()
+            completion(false)
+        })
+        
+        //continue, continue to Spotify account, rewrite old data
+        alert.addAction(UIAlertAction(title: "Continue", style: .destructive) { _ in
+            
+            //save all new info to userdefaults
+            UserDefaults.standard.set(displayName, forKey: self.userNameKey)
+            UserDefaults.standard.set(spotifyID, forKey: self.spotifyUserIDKey)
+            UserDefaults.standard.set(spotifyID, forKey: self.lastSpotifyUserIDKey)
+
+            if let email = email {
+                UserDefaults.standard.set(email, forKey: self.spotifyEmailKey)
+            }
+            
+            //create new firebase account if we are signing up (shouldn't be a main concern)
+            if self.isSignupFlow {
+                self.createFirebaseAccount(spotifyID: spotifyID, email: email, displayName: displayName, completion: completion)
+            } else {
+                completion(true)
+            }
+        })
+        topVC.present(alert, animated: true)
+    }
+    
     private func notifyPasswordIssue(email: String) {
         guard let topVC = UIApplication.shared.windows.first?.rootViewController else { return }
         
-        let alert = UIAlertController(title: "Account Already Exists", message: "An account with this email already exists. Please use original password.", preferredStyle: .alert)
+        let alert = UIAlertController(title: "Account Already Exists", message: "An account with this email already exists. Please log in to Neiro with this email, try a different account, or reset your password.", preferredStyle: .alert)
         
         alert.addAction(UIAlertAction(title: "Send Password Reset Email", style: .default) { _ in
             self.sendPasswordResetEmail(email: email, presentingVC: topVC)
@@ -380,6 +448,8 @@ class SpotifyUserAuthorization {
         
         print("Disconnected and data cleared from Spotify!")
     }
+    
+
     
     
     //helper function to store tokens
