@@ -244,10 +244,22 @@ class SignUpViewController: UIViewController, UITextFieldDelegate {
     }
     
     @objc private func handleSignUp() {
-        guard let email = emailField.text, !email.isEmpty,
-              let password = passwordField.text, !password.isEmpty,
-              let verifyPassword = verifyPasswordField.text, !verifyPassword.isEmpty else {
+        let trueEmail = emailField.text ?? ""
+        let truePassword = passwordField.text ?? ""
+        let trueVerifyPassword = verifyPasswordField.text ?? ""
+        
+        let email = trueEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let password = truePassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        let verifyPassword = trueVerifyPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        
+        guard !email.isEmpty, !password.isEmpty, !verifyPassword.isEmpty else {
             showAlert(title: "Missing fields", message: "Please fill in all of the fields.")
+            return
+        }
+        
+        guard email.contains("@"), email.contains(".") else {
+            showAlert(title: "Invalid Email", message: "Please enter a valid email")
             return
         }
         

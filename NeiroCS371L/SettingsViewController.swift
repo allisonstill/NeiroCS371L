@@ -55,7 +55,7 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
 
     private let appearanceCard = UIView()
     private let appearanceTitle = UILabel()
-    private let appearanceSeg = UISegmentedControl(items: ["System", "Dark", "Light"])
+    private let appearanceSeg = UISegmentedControl(items: ["Dark", "Light", "System"])
 
     private let lengthCard = UIView()
     private let lengthTitle = UILabel()
@@ -278,7 +278,7 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         let signOutButton = UIButton(type: .system)
         signOutButton.setTitle("Sign Out", for: .normal)
         signOutButton.titleLabel?.textColor = .gray
-        signOutButton.backgroundColor = ThemeColor.Color.titleOutline
+        signOutButton.backgroundColor = UIColor.red
         signOutButton.setTitleColor(.white, for: .normal)
         signOutButton.layer.cornerRadius = 14
         signOutButton.heightAnchor.constraint(equalToConstant: 50).isActive = true
@@ -299,9 +299,11 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
 
     // MARK: - Session I/O
     private func loadFromSession() {
-        // ["Dark","Light"] => 0: dark, 1: light
-        appearanceSeg.selectedSegmentIndex = (SessionStore.appearanceStyle == "dark") ? 1 : 0
-        applyAppearance(SessionStore.appearanceStyle)
+        switch ThemeManager.current {
+            case .light:  appearanceSeg.selectedSegmentIndex = 1
+            case .dark:   appearanceSeg.selectedSegmentIndex = 0
+            case .system: appearanceSeg.selectedSegmentIndex = 2
+        }
 
         let idx: [Int:Int] = [10:0, 30:1, 60:2, 120:3]
         lengthSeg.selectedSegmentIndex = idx[SessionStore.playlistMinutes] ?? 0
@@ -343,12 +345,12 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         // ["Dark","Light"] => index 0 is dark
         let choice: AppAppearance = {
                 switch appearanceSeg.selectedSegmentIndex {
+                case 0: return .dark
                 case 1:
-                    let style = "light"
-                    SessionStore.appearanceStyle = style
-                    applyAppearance(style)
+                    // let style = "light"
+                    // SessionStore.appearanceStyle = style
+                    // applyAppearance(style)
                     return .light
-                case 2: return .dark
                 default: return .system
                 }
             }()
@@ -382,10 +384,41 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
     }
 
     @objc private func changePhotoTapped() {
-        let picker = UIImagePickerController()
-        picker.sourceType = .photoLibrary
-        picker.delegate = self
-        present(picker, animated: true)
+//        let picker = UIImagePickerController()
+//        picker.sourceType = .photoLibrary
+//        picker.delegate = self
+//        present(picker, animated: true)
+        let sheet = UIAlertController(title: "Profile Photo", message: "Choose a source", preferredStyle: .actionSheet)
+
+        // Camera
+        let camera = UIAlertAction(title: "Take Photo", style: .default) { [weak self] _ in
+            guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+                self?.showAlert(title: "Camera Unavailable", message: "This device has no camera.")
+                return
+            }
+            let picker = UIImagePickerController()
+            picker.sourceType = .camera
+            picker.cameraCaptureMode = .photo
+            picker.allowsEditing = true
+            picker.delegate = self
+            self?.present(picker, animated: true)
+        }
+        sheet.addAction(camera)
+
+        // Photo Library
+        let library = UIAlertAction(title: "Choose from Library", style: .default) { [weak self] _ in
+            let picker = UIImagePickerController()
+            picker.sourceType = .photoLibrary
+            picker.allowsEditing = true
+            picker.delegate = self
+            self?.present(picker, animated: true)
+        }
+        sheet.addAction(library)
+
+        // Cancel
+        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        
+        present(sheet, animated: true)
     }
     
     @objc private func connectSpotifyTapped() {
