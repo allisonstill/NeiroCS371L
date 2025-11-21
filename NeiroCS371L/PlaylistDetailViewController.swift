@@ -341,58 +341,44 @@ final class PlaylistDetailViewController: UIViewController {
         navigationController?.popViewController(animated: true)
     }
     
+    //updated update playlist button to now route to LLM Screen so users have the option to update the playlist based on English language preferences
     @objc private func updatePlaylistTapped() {
+        
+        //check if still connected to Spotify
         guard SpotifyUserAuthorization.shared.isConnected else {
             showAlert(title: "Not Connected", message: "Please connect Spotify account.")
             return
         }
         
-        // disable UI during update
-        activityIndicator.startAnimating()
-        updateButton.isEnabled = false
-        view.isUserInteractionEnabled = false
-
-        let emoji = playlist.emoji
-        let settings = SpotifySettings.shared
-        let targetCount = settings.playlistLength.songCount
-        let excludedGenres = settings.excludedGenres
-
-        SpotifyAPI.shared.generatePlaylist(
-            for: emoji,
-            targetSongCount: targetCount,
-            excludedGenres: excludedGenres
-        ) { [weak self] result in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-
-                self.activityIndicator.stopAnimating()
-                self.updateButton.isEnabled = true
-                self.view.isUserInteractionEnabled = true
-
-                switch result {
-                case .success(let newSongs):
-
-                    let uniqueSongs = Dictionary(grouping: newSongs, by: { "\($0.title)_\($0.artist ?? "")" })
-                        .compactMap { $0.value.first }
-                    
-                    // update song list
-                    self.playlist.songs = uniqueSongs
-
-                    PlaylistLibrary.updatePlaylist(self.playlist)
-
-                    // update artist header
-                    let artists = Array(Set(uniqueSongs.compactMap { $0.artist })).prefix(3)
-                    self.artistsLabel.text = artists.isEmpty ? "Various Artists" : artists.joined(separator: ", ")
-
-                    // refresh UI
-                    self.tableView.reloadData()
-
-                    self.showAlert(title: "Playlist Updated", message: "Your playlist has been updated!")
-
-                case .failure(let error):
-                    self.showAlert(title: "Error", message: error.localizedDescription)
-                }
-            }
+        let describeVC = DescribeLLMViewController()
+        describeVC.updatingPlaylist = playlist
+        
+        // callback after updating the playlist through Gemini
+        describeVC.onUpdate = { [weak self] updatedPlaylist in
+            guard let self = self else { return }
+            
+            // update local playlist with emoji, artists, timestamp
+            self.playlist = updatedPlaylist
+            self.emojiLabel.text = updatedPlaylist.emoji
+            self.playlistNameLabel.text = updatedPlaylist.title
+            let artists = Array(Set(updatedPlaylist.songs.compactMap{ $0.artist})).prefix(3)
+            self.artistsLabel.text = artists.isEmpty ? "Various Artists" : artists.joined(separator: ", ")
+            self.timestampLabel.text = Self.dateFormatter.string(from: updatedPlaylist.createdAt)
+            
+            self.tableView.reloadData()
+            
+            // call onSave callback
+            self.onSave?(updatedPlaylist)
+            
+        }
+        
+        // push LLM screen back onto nav controller
+        if let nav = navigationController {
+            nav.pushViewController(describeVC, animated: true)
+        } else {
+            let nav = UINavigationController(rootViewController: describeVC)
+            nav.modalPresentationStyle = .formSheet
+            present(nav, animated: true)
         }
     }
 

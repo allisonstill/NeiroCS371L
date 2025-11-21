@@ -105,3 +105,23 @@ class SpotifySettings {
         autoExportToSpotify = false
     }
 }
+
+// map playlist length strings from LLM (Gemini)
+extension SpotifySettings.PlaylistLength {
+    
+    // convert the strings from Gemini into PlaylistLength enum
+    static func fromLLM(_ value: String) -> SpotifySettings.PlaylistLength {
+        switch value.lowercased() {
+        case "short":
+            return .short
+        case "medium":
+            return .medium
+        case "long":
+            return .long
+        case "extralong", "extra long":
+            return .extraLong
+        default:
+            return .medium
+        }
+    }
+}

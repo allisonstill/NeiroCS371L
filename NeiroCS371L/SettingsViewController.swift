@@ -572,7 +572,7 @@ final class SearchableMultiPickerViewController: UITableViewController {
 
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             title: "Done",
-            style: .prominent,
+            style: .plain,
             target: self,
             action: #selector(doneTapped)
         )
