@@ -35,6 +35,6 @@
 		</dict>
 	</array>
 	<key>GEMINI_API_KEY</key>
-	<string>AIzaSyAs3RVN-zYwz_2HXDcW_jqN_DbliS6mK-k</string>
+	<string>$(GEMINI_API_KEY)</string>
 </dict>
 </plist>

@@ -30,3 +30,8 @@
 - Click the plus button in the top right of the Playlists tab to create a new playlist, then press an emoji to generate and save the playlist
 - Click onto any of the existing playlists to see what songs are in them, the pencil to rename the playlist, and the X to delete the playlist
 
+- New Comment for Final Release:
+-   Neiro uses the Gemini API, and we use a Gemini API Key that is not committed for security. In order to run the project, please:
+- 1. Duplicate the 'Secrets.example.xcconfig' file and rename it to 'Secrets.xcconfig'.
+- 2. Add your Gemini API key instead of 'REPLACE_THIS' to GEMINI_API_KEY = REPLACE_THIS.
+- 3. Clean and rebuild the project.

@@ -161,6 +161,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 8RQB752JC7;
+				GEMINI_API_KEY = "$(GEMINI_API_KEY)";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = NeiroCS371L/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -194,6 +195,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 8RQB752JC7;
+				GEMINI_API_KEY = "$(GEMINI_API_KEY)";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = NeiroCS371L/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -221,6 +223,8 @@
 		};
 		1C2D21B92EA184E0003595B2 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 1C2D21A52EA184DF003595B2 /* NeiroCS371L */;
+			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -285,6 +289,8 @@
 		};
 		1C2D21BA2EA184E0003595B2 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 1C2D21A52EA184DF003595B2 /* NeiroCS371L */;
+			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;

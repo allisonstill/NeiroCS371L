@@ -29,3 +29,5 @@ GoogleService-Info.plist
 LocalFixes.swift
 
 NeiroCS371L/GoogleService-Info.plist
+
+Secrets.xcconfig

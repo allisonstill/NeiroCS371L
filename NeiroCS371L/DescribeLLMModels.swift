@@ -126,6 +126,8 @@ final class DescribeLLMModels {
         
         // throw error if we get an unexpected status code
         if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode){
+            let text = String(data: data, encoding: .utf8) ?? "No data"
+            print("Gemini HTTP error \(http.statusCode): \(text)")
             throw DescribeLLMError.apiError("HTTP Status Code: \(http.statusCode)")
         }
         
@@ -150,5 +152,18 @@ final class DescribeLLMModels {
         
         // decode into DescribeLLMResponse
         return try JSONDecoder().decode(DescribeLLMResponse.self, from: newData)
+    }
+}
+
+extension DescribeLLMError: LocalizedError {
+    var errorDescription: String? {
+        switch self {
+        case .emptyResponse:
+            return "Gemini returned an empty or missing response"
+        case .invalidJSON:
+            return "Gemini returned invalid JSON"
+        case .apiError(let message):
+            return "Gemini returned an error: \(message)"
+        }
     }
 }
