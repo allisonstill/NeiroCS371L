@@ -18,6 +18,7 @@ class DescribeLLMViewController: UIViewController, UITextViewDelegate {
     
     private let describeLabel = UILabel()
     private let helperLabel = UILabel()
+    private let textBackgroundView = UIView()
     private let textArea = UITextView()
     private let placeholderLabel = UILabel()
     private let createButton = UIButton(type: .system)
@@ -43,17 +44,28 @@ class DescribeLLMViewController: UIViewController, UITextViewDelegate {
         // set up new helper label as instructions for the user to know what to input in the LLM box
         helperLabel.translatesAutoresizingMaskIntoConstraints = false
         helperLabel.textColor = .lightGray
+        helperLabel.textAlignment = .center
         helperLabel.font = .systemFont(ofSize: 14)
         helperLabel.numberOfLines = 0
         
         // change instruction helper text based on if we are creating or updating
         if updatingPlaylist == nil {
-            helperLabel.text = "Example: '60 minutes of upbeat, positive, pop music to use for a workout.'"
+            helperLabel.text = "Please describe BOTH the mood and length of the playlist. Example: '60 minutes of upbeat, positive, pop music to use for a workout.'"
         } else {
-            helperLabel.text = "Example: 'Make this playlist slightly more upbeat and longer, like 60 minutes long, but keep the same general vibe."
+            helperLabel.text = "Please describe BOTH the new mood and new length of the playlist you want. Example: 'Make this playlist slightly more upbeat and longer, like 60 minutes long, but keep the same general vibe."
         }
         
         view.addSubview(helperLabel)
+        
+        textBackgroundView.translatesAutoresizingMaskIntoConstraints = false
+        textBackgroundView.backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.9)
+        textBackgroundView.layer.cornerRadius = 14
+        textBackgroundView.layer.shadowColor = UIColor.black.cgColor
+        textBackgroundView.layer.shadowOpacity = 0.25
+        textBackgroundView.layer.shadowRadius = 10
+        textBackgroundView.layer.shadowOffset = CGSize(width: 0, height: 4)
+        view.addSubview(textBackgroundView)
+                                                       
         
         textArea.font = .systemFont(ofSize: 16)
         textArea.layer.cornerRadius = 8
@@ -66,10 +78,11 @@ class DescribeLLMViewController: UIViewController, UITextViewDelegate {
         
         // add placeholder to the LLM box
         placeholderLabel.translatesAutoresizingMaskIntoConstraints = false
-        placeholderLabel.text = "Tell Neiro what music you'd like to listen to!"
+        placeholderLabel.text = "Describe the mood and length of the playlist!"
         placeholderLabel.textColor = UIColor.lightGray.withAlphaComponent(0.8)
         placeholderLabel.font = .systemFont(ofSize: 16)
         placeholderLabel.numberOfLines = 0
+        
         textArea.addSubview(placeholderLabel)
         
         setupCreateButton()
@@ -77,7 +90,7 @@ class DescribeLLMViewController: UIViewController, UITextViewDelegate {
         NSLayoutConstraint.activate([
             
             
-            describeLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 48),
+            describeLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 32),
             describeLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             describeLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
             
@@ -85,10 +98,15 @@ class DescribeLLMViewController: UIViewController, UITextViewDelegate {
             helperLabel.leadingAnchor.constraint(equalTo: describeLabel.leadingAnchor),
             helperLabel.trailingAnchor.constraint(equalTo: describeLabel.trailingAnchor),
             
-            textArea.topAnchor.constraint(equalTo: helperLabel.bottomAnchor, constant: 16),
-            textArea.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
-            textArea.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
-            textArea.heightAnchor.constraint(equalToConstant: 150),
+            textBackgroundView.topAnchor.constraint(equalTo: helperLabel.bottomAnchor, constant: 16),
+            textBackgroundView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            textBackgroundView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            textBackgroundView.heightAnchor.constraint(equalToConstant: 180),
+            
+            textArea.topAnchor.constraint(equalTo: textBackgroundView.topAnchor),
+            textArea.leadingAnchor.constraint(equalTo: textBackgroundView.leadingAnchor),
+            textArea.trailingAnchor.constraint(equalTo: textBackgroundView.trailingAnchor),
+            textArea.bottomAnchor.constraint(equalTo: textBackgroundView.bottomAnchor),
             
             placeholderLabel.topAnchor.constraint(equalTo: textArea.topAnchor, constant: 12),
             placeholderLabel.leadingAnchor.constraint(equalTo: textArea.leadingAnchor, constant: 12),
@@ -111,7 +129,7 @@ class DescribeLLMViewController: UIViewController, UITextViewDelegate {
         createButton.titleLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
         createButton.backgroundColor = .systemBlue
         createButton.setTitleColor(.white, for: .normal)
-        createButton.layer.cornerRadius = 8
+        createButton.layer.cornerRadius = 12
         createButton.contentEdgeInsets = UIEdgeInsets(top: 14, left: 20, bottom: 14, right: 20)
         
         createButton.addTarget(self, action: #selector(createPlaylistTapped), for: .touchUpInside)
@@ -127,6 +145,19 @@ class DescribeLLMViewController: UIViewController, UITextViewDelegate {
         let text = textArea.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else {
             showAlert(title: "Describe your playlist", message: "Please enter 1-2 sentences describing your playlist in the text area.")
+            return
+        }
+        
+        let lowercase = text.lowercased()
+        
+        // ensure input text contains time before LLM call
+        let textContainsTime = lowercase.contains("minute") || lowercase.contains("min") || lowercase.contains("hour") || lowercase.contains("short") || lowercase.contains("medium") || lowercase.contains("long") || lowercase.contains("extra")
+        
+        // ensure input text contains mood before LLM call
+        let textContainsMood = lowercase.contains("happy") || lowercase.contains("sad") || lowercase.contains("chill") || lowercase.contains("calm") || lowercase.contains("upbeat") || lowercase.contains("energetic") || lowercase.contains("romantic") || lowercase.contains("angry") || lowercase.contains("relaxed") || lowercase.contains("vibe")
+        
+        if !textContainsMood || !textContainsTime {
+            showAlert(title: "More Details Needed", message: "Please include both a mood and a playlist length (time). For example, try asking for a 'calm 30-minute playlist'.")
             return
         }
         
@@ -149,7 +180,7 @@ class DescribeLLMViewController: UIViewController, UITextViewDelegate {
                 // Error! Couldn't get response from Gemini
                 await MainActor.run {
                     self.setLoading(false, title: self.updatingPlaylist == nil ? "Generate Playlist" : "Update Playlist")
-                    self.showAlert(title: "Error", message: "We could not understand your request. Please try again: \(error.localizedDescription)")
+                    self.showAlert(title: "Error", message: "We could not understand your request. Make sure to include both a mood and a playlist length, and please try again: \(error.localizedDescription)")
                 }
             }
         }
