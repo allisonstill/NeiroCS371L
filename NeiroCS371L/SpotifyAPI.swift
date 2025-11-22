@@ -209,8 +209,11 @@ class SpotifyAPI {
             })
         }
         
+        let baseGenres = availableGenres.isEmpty ? ["pop", "indie", "rock"] : availableGenres
+        
         // creating an array of search terms (based on attributes and genres that are still included/available)
-        let searchTerms = Array((attributes.keywords.prefix(3) + availableGenres.prefix(2)))
+        //let searchTerms = Array((attributes.keywords.prefix(3) + availableGenres.prefix(2)))
+        let searchTerms = Array(baseGenres.shuffled().prefix(4))
         
         // search a couple times to generate a playlist
         for term in searchTerms {
@@ -239,9 +242,18 @@ class SpotifyAPI {
                 }
             }
             
+            let checkUniqueTracks: [SpotifyTrack] = Dictionary(
+                grouping: uniqueTracks,
+                by: { track in
+                    let title = track.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    let artist = track.artists.first?.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+                    return "\(title)__\(artist)"
+                }
+            ).compactMap {$0.value.first} // only keep one version of duplicated songs
+            
             // shuffle playlist so we get diff sources
             // limit to the number of target songs we want
-            let selectedTracks = Array(uniqueTracks.shuffled().prefix(targetSongCount))
+            let selectedTracks = Array(checkUniqueTracks.shuffled().prefix(targetSongCount))
             
             // convert to Song objects
             let songs = selectedTracks.map { $0.toSong() }

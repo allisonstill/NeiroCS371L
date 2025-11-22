@@ -144,6 +144,33 @@ class RandomEmojiViewController: UIViewController {
         generator.notificationOccurred(.success)
     }
     
+    private func promptName(initialName: String, completion: @escaping (String?) -> Void) {
+        
+        let alert = UIAlertController(title: "Name Your Playlist", message: nil, preferredStyle: .alert)
+        alert.addTextField { textField in
+            textField.placeholder = "Playlist Name"
+            textField.text = initialName
+            textField.clearButtonMode = .whileEditing
+            textField.autocapitalizationType = .words
+        }
+        
+        // user cancelled naming -> stop create
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
+            completion(nil)
+        })
+        
+        // save playlist name, finish create
+        alert.addAction(UIAlertAction(title: "Save", style: .default) { _ in
+            let name = alert.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            let newName = (name?.isEmpty == false) ? name!: initialName
+            completion(newName)
+        })
+        
+        present(alert, animated: true)
+    }
+
+    
     //just calls playlistgenerator's checkSpotifyConnection
     private func checkSpotifyConnection() {
         PlaylistGenerator.checkSpotifyConnection(on: self)
@@ -153,12 +180,24 @@ class RandomEmojiViewController: UIViewController {
     @objc private func createTapped() {
         guard let emoji = selectedEmoji else {return}
         if let existing = PlaylistGenerator.shared.existingPlaylist(for: emoji) {
-            let detailVC = PlaylistDetailViewController()
-            detailVC.playlist = existing
-            detailVC.isNewPlaylist = true
-            navigationController?.pushViewController(detailVC, animated: true)
+            
+            let message = "You already have a playlist for \(emoji). We'll open it for you!"
+            
+            let alert = UIAlertController(title: "Playlist Already Exists", message: message, preferredStyle: .alert)
+            
+            alert.addAction(UIAlertAction(title: "Open Playlist", style: .default) { [weak self] _ in
+                guard let self = self else {return}
+                let detailVC = PlaylistDetailViewController()
+                detailVC.playlist = existing
+                detailVC.isNewPlaylist = false
+                self.navigationController?.pushViewController(detailVC, animated: true)
+            })
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+            present(alert, animated: true)
             return
         }
+        
+        //no previously existing playlist
         generatePlaylistFromSpotify(for: emoji)
     }
     
@@ -181,16 +220,34 @@ class RandomEmojiViewController: UIViewController {
     
     //save and show/push new playlist on vc
     private func saveAndShowPlaylist(_ playlist: Playlist) {
-        PlaylistGenerator.shared.savePlaylist(playlist, activityIndicator: activityIndicator) { [weak self] success in
+        
+        let defaultName: String
+        if playlist.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            defaultName = PlaylistGenerator.shared.getPlaylistName(for: playlist.emoji)
+        } else {
+            defaultName = playlist.title
+        }
+        
+        promptName(initialName: defaultName) { [weak self] chosenName in
             
             guard let self = self else {return}
-            if success {
-                self.onCreate?(playlist)
+            guard let chosenName = chosenName else {return}
+            playlist.title = chosenName
+            
+            PlaylistGenerator.shared.savePlaylist(playlist, activityIndicator: self.activityIndicator) { [weak self] success in
+            
+                guard let self = self else {return}
+                if success {
+                    self.onCreate?(playlist)
+                }
+                let detailVC = PlaylistDetailViewController()
+                detailVC.playlist = playlist
+                detailVC.isNewPlaylist = true
+                self.navigationController?.pushViewController(detailVC, animated: true)
+                
             }
-            let detailVC = PlaylistDetailViewController()
-            detailVC.playlist = playlist
-            detailVC.isNewPlaylist = true
-            self.navigationController?.pushViewController(detailVC, animated: true)
+            
         }
+
     }
 }
