@@ -34,6 +34,12 @@ class SignUpViewController: UIViewController, UITextFieldDelegate {
         verifyPasswordField.delegate = self
         setupUI()
         setupSpotifyObservers()
+        
+        emailField.keyboardType = .emailAddress
+        emailField.textContentType = .emailAddress
+        
+        passwordField.textContentType = .newPassword
+        verifyPasswordField.textContentType = .newPassword
     }
     
     deinit {
