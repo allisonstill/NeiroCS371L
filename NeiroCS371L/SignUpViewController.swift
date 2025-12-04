@@ -284,7 +284,10 @@ class SignUpViewController: UIViewController, UITextFieldDelegate {
                 self.showAlert(title: "Sign Up Error", message: error.localizedDescription)
             } else {
                 print("Account created successfully!")
-                self.navigateToMainApp()
+                let profilePictureVC = ProfilePictureViewController(isNewUser: true)
+                profilePictureVC.modalPresentationStyle = .fullScreen
+                self.present(profilePictureVC, animated: true)
+                //self.navigateToMainApp()
             }
         }
     }
