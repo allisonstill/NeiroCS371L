@@ -24,8 +24,7 @@ final class HomePlaylistViewController: UIViewController {
         
         //keep track of when there is a new 'last opened playlist'
         NotificationCenter.default.addObserver(self, selector: #selector(refreshFromNotification), name: .lastOpenedPlaylistDidChange, object: nil)
-
-    }
+        }
     
     private func setupUI() {
         view.addSubview(container)

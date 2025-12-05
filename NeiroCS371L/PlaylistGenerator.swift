@@ -55,6 +55,101 @@ final class PlaylistGenerator {
         }
     }
     
+    func generatePlaylistFromListenBrainz(
+        for emoji: String,
+        activityIndicator: UIActivityIndicatorView?,
+        on vc: UIViewController,
+        completion: @escaping (Result<Playlist, Error>) -> Void
+    ) {
+        // Ensure Spotify is connected, since we ultimately resolve via Spotify search
+        guard SpotifyUserAuthorization.shared.isConnected else {
+            let error = NSError(
+                domain: "PlaylistGenerator",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Not Connected to Spotify"]
+            )
+            completion(.failure(error))
+            return
+        }
+
+        activityIndicator?.startAnimating()
+        vc.view.isUserInteractionEnabled = false
+
+        let settings = SpotifySettings.shared
+        let targetCount = settings.playlistLength.songCount
+
+        ListenBrainzAPI.shared.generateSongsFromEmoji(emoji, targetSongCount: targetCount) { result in
+            DispatchQueue.main.async {
+                activityIndicator?.stopAnimating()
+                vc.view.isUserInteractionEnabled = true
+
+                switch result {
+                case .success(let songs):
+                    let playlist = self.createPlaylist(emoji: emoji, songs: songs)
+                    completion(.success(playlist))
+
+                case .failure(let error):
+                    completion(.failure(error))
+                }
+            }
+        }
+    }
+    
+    // MARK: - Last.fm-based playlist generation
+        
+        func generatePlaylistFromLastFM(
+            for emoji: String,
+            nicheness: Int = 2,
+            activityIndicator: UIActivityIndicatorView?,
+            on vc: UIViewController,
+            completion: @escaping (Result<Playlist, Error>) -> Void
+        ) {
+            // still require Spotify connection, since we resolve to Spotify tracks
+            guard SpotifyUserAuthorization.shared.isConnected else {
+                let error = NSError(
+                    domain: "PlaylistGenerator",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "Not Connected to Spotify"]
+                )
+                completion(.failure(error))
+                return
+            }
+            
+            activityIndicator?.startAnimating()
+            vc.view.isUserInteractionEnabled = false
+            
+            let settings = SpotifySettings.shared
+            let targetCount = settings.playlistLength.songCount
+            
+            let excludedArtists: Set<String> = SessionStore.unwantedArtists
+            let preferredArtists:Set<String> = SessionStore.preferredArtists
+            let preferredGenres: Set<String> = SessionStore.preferredGenres      // (as Last.fm-style tags)
+            
+            LastFMAPI.shared.generateSongsFromEmoji(
+                emoji,
+                nicheness: nicheness,
+                songCount: targetCount,
+                excludedArtists: excludedArtists,
+                preferredArtists: preferredArtists,
+                preferredGenres: preferredGenres
+            ) { result in
+                DispatchQueue.main.async {
+                    activityIndicator?.stopAnimating()
+                    vc.view.isUserInteractionEnabled = true
+                    
+                    switch result {
+                    case .success(let songs):
+                        let playlist = self.createPlaylist(emoji: emoji, songs: songs)
+                        completion(.success(playlist))
+                        
+                    case .failure(let error):
+                        completion(.failure(error))
+                    }
+                }
+            }
+        }
+
+    
     //private helper to create playlist based on songs given (return playlist)
     private func createPlaylist(emoji: String, songs: [Song]) -> Playlist {
         let playlistName = getPlaylistName(for: emoji)
