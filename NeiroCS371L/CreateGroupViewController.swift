@@ -7,7 +7,7 @@
 
 import UIKit
 
-final class CreateGroupViewController: UIViewController {
+final class CreateGroupViewController: UIViewController, UITextFieldDelegate {
     
     private let nameField = UITextField()
     private let nameLabel = UILabel()
@@ -41,7 +41,7 @@ final class CreateGroupViewController: UIViewController {
     
     private func configureNameField() {
         nameField.translatesAutoresizingMaskIntoConstraints = false
-        nameField.placeholder = "Friends Jam Session"
+        nameField.placeholder = "Your Name"
         nameField.font = .systemFont(ofSize: 16)
         nameField.textColor = .white
         nameField.backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.6)
@@ -49,11 +49,22 @@ final class CreateGroupViewController: UIViewController {
         nameField.setLeftPaddingPoints(12)
         nameField.setRightPaddingPoints(12)
         nameField.addTarget(self, action: #selector(textDidChange), for: .editingChanged)
+        
+        nameField.delegate = self
     }
+    
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+            self.view.endEditing(true)
+        }
+    
+    func textFieldShouldReturn(_ textField:UITextField) -> Bool {
+            textField.resignFirstResponder()
+            return true
+        }
     
     private func configureLabels() {
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
-        nameLabel.text = "Group Name"
+        nameLabel.text = "Name"
         nameLabel.font = .systemFont(ofSize: 15, weight: .semibold)
         nameLabel.textColor = .white
         

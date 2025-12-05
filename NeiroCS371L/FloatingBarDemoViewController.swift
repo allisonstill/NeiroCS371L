@@ -12,7 +12,7 @@ final class FloatingBarDemoViewController: UIViewController {
 
     private let floatingBar = FloatingBar()
     private let content = UIView()          // where child screens live
-    private var currentChild: UIViewController?    
+    private var currentChild: UIViewController?
     private lazy var homeVC = HomePlaylistViewController()
     private lazy var historyVC = PlaylistViewController()
     private lazy var groupVC = GroupHomeViewController()
@@ -37,6 +37,16 @@ final class FloatingBarDemoViewController: UIViewController {
         // Start on "Home" (placeholder)
         showChild(self.homeVC)
         floatingBar.select(index: 0)
+        
+        // Initial load
+        loadUserPlaylists()
+    }
+    
+    // MARK: - Fix for History Sync
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        // Reload playlists every time we return to this screen.
+        // This ensures new Group Playlists appear immediately after leaving the session.
         loadUserPlaylists()
     }
     

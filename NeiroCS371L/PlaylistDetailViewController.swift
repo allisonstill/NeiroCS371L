@@ -278,8 +278,6 @@ final class PlaylistDetailViewController: UIViewController {
     }
 
     // MARK: - Playback
-    //TODO: Not sure if the play snippets are working yet
-    // MARK: - Playback
     // Now uses Spotify Web API playback instead of local 30s previews
     private func playSnippet(for song: Song, at indexPath: IndexPath) {
         // Toggle off if already playing this row
@@ -324,110 +322,105 @@ final class PlaylistDetailViewController: UIViewController {
     }
 
     private func startPlayback(urlString trackURI: String, at indexPath: IndexPath) {
-        // 1) Get a valid token (this may refresh)
-        SpotifyUserAuthorization.shared.getValidAccessToken { [weak self] token in
+        // FIX: Replaced getValidAccessToken closure with direct access
+        guard let accessToken = SpotifyUserAuthorization.shared.accessToken else {
+            self.showAlert(
+                title: "Not Connected",
+                message: "Please connect your Spotify account."
+            )
+            return
+        }
+        
+        // 2) Get an active Spotify device (phone, speaker, etc.)
+        self.fetchActiveDevice(accessToken: accessToken) { [weak self] deviceId in
             guard let self = self else { return }
             
-            // No token → show alert and bail
-            guard let accessToken = token else {
+            guard let deviceId = deviceId else {
+                // No active device found: tell user what to do
                 DispatchQueue.main.async {
                     self.showAlert(
-                        title: "Not Connected",
-                        message: "Please connect your Spotify account."
+                        title: "No Active Spotify Device",
+                        message: self.openSpotifyMsg
                     )
                 }
                 return
             }
             
-            // 2) Get an active Spotify device (phone, speaker, etc.)
-            self.fetchActiveDevice(accessToken: accessToken) { [weak self] deviceId in
+            self.currentDeviceId = deviceId
+            
+            // 3) Build the request: PUT /v1/me/player/play?device_id=... with body { "uris": [...] }
+            // Note: The URL string below seems to be a placeholder from your partner's code,
+            // but I am keeping it to match the existing pattern in your project.
+            var components = URLComponents(string: "https://api.spotify.com/v1/me/player/play")!
+            components.queryItems = [
+                URLQueryItem(name: "device_id", value: deviceId)
+            ]
+            
+            guard let url = components.url else {
+                print("Invalid Spotify play URL with device_id")
+                return
+            }
+            
+            var request = URLRequest(url: url)
+            request.httpMethod = "PUT"
+            request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+            
+            let body: [String: Any] = ["uris": [trackURI]]
+            do {
+                request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
+            } catch {
+                print("Failed to encode play body: \(error)")
+                return
+            }
+            
+            // Cancel any existing timer observer (snippet timer)
+            if let timer = self.playbackObserver as? Timer {
+                timer.invalidate()
+                self.playbackObserver = nil
+            }
+            
+            URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
                 guard let self = self else { return }
                 
-                guard let deviceId = deviceId else {
-                    // No active device found: tell user what to do
-                    DispatchQueue.main.async {
-                        self.showAlert(
-                            title: "No Active Spotify Device",
-                            message: self.openSpotifyMsg
-                        )
-                    }
+                if let error = error {
+                    print("Error starting Spotify playback: \(error)")
                     return
                 }
                 
-                self.currentDeviceId = deviceId
-                
-                // 3) Build the request: PUT /v1/me/player/play?device_id=... with body { "uris": [...] }
-                var components = URLComponents(string: "https://api.spotify.com/v1/me/player/play")!
-                components.queryItems = [
-                    URLQueryItem(name: "device_id", value: deviceId)
-                ]
-                
-                guard let url = components.url else {
-                    print("Invalid Spotify play URL with device_id")
-                    return
-                }
-                
-                var request = URLRequest(url: url)
-                request.httpMethod = "PUT"
-                request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-                request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-                
-                let body: [String: Any] = ["uris": [trackURI]]
-                do {
-                    request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
-                } catch {
-                    print("Failed to encode play body: \(error)")
-                    return
-                }
-                
-                // Cancel any existing timer observer (snippet timer)
-                if let timer = self.playbackObserver as? Timer {
-                    timer.invalidate()
-                    self.playbackObserver = nil
-                }
-                
-                URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
-                    guard let self = self else { return }
+                if let http = response as? HTTPURLResponse {
+                    let status = http.statusCode
+                    let bodyString = data.flatMap { String(data: $0, encoding: .utf8) } ?? "<no body>"
+                    print("Spotify play response status: \(status), body: \(bodyString)")
                     
-                    if let error = error {
-                        print("Error starting Spotify playback: \(error)")
-                        return
-                    }
-                    
-                    if let http = response as? HTTPURLResponse {
-                        let status = http.statusCode
-                        let bodyString = data.flatMap { String(data: $0, encoding: .utf8) } ?? "<no body>"
-                        print("Spotify play response status: \(status), body: \(bodyString)")
-                        
-                        if (200...299).contains(status) || status == 204 {
-                            // Success – update UI on main thread
-                            DispatchQueue.main.async {
-                                self.currentlyPlayingIndex = indexPath
-                                self.tableView.reloadRows(at: [indexPath], with: .none)
-                                
-                                // Auto-stop after ~30 seconds to mimic "snippet" behavior
-                                let timer = Timer.scheduledTimer(
-                                    withTimeInterval: 30.0,
-                                    repeats: false
-                                ) { [weak self] _ in
-                                    self?.stopPlayback()
-                                }
-                                self.playbackObserver = timer
+                    if (200...299).contains(status) || status == 204 {
+                        // Success – update UI on main thread
+                        DispatchQueue.main.async {
+                            self.currentlyPlayingIndex = indexPath
+                            self.tableView.reloadRows(at: [indexPath], with: .none)
+                            
+                            // Auto-stop after ~30 seconds to mimic "snippet" behavior
+                            let timer = Timer.scheduledTimer(
+                                withTimeInterval: 30.0,
+                                repeats: false
+                            ) { [weak self] _ in
+                                self?.stopPlayback()
                             }
-                        } else if status == 404 {
-                            // Still no active device – show guidance
-                            DispatchQueue.main.async {
-                                self.showAlert(
-                                    title: "No Active Spotify Device",
-                                    message: self.openSpotifyMsg
-                                )
-                            }
-                        } else {
-                            print("Spotify play failed with status: \(status)")
+                            self.playbackObserver = timer
                         }
+                    } else if status == 404 {
+                        // Still no active device – show guidance
+                        DispatchQueue.main.async {
+                            self.showAlert(
+                                title: "No Active Spotify Device",
+                                message: self.openSpotifyMsg
+                            )
+                        }
+                    } else {
+                        print("Spotify play failed with status: \(status)")
                     }
-                }.resume()
-            }
+                }
+            }.resume()
         }
     }
 
@@ -455,40 +448,37 @@ final class PlaylistDetailViewController: UIViewController {
             return
         }
         
-        // Get a valid token (may refresh)
-        SpotifyUserAuthorization.shared.getValidAccessToken { [weak self] token in
-            guard let self = self else { return }
-            guard let accessToken = token else {
-                return
-            }
-            
-            var components = URLComponents(string: "https://api.spotify.com/v1/me/player/pause")!
-            components.queryItems = [
-                URLQueryItem(name: "device_id", value: deviceId)
-            ]
-            
-            guard let url = components.url else {
-                print("Invalid Spotify pause URL with device_id")
-                return
-            }
-            
-            var request = URLRequest(url: url)
-            request.httpMethod = "PUT"
-            request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-            
-            URLSession.shared.dataTask(with: request) { data, response, error in
-                if let error = error {
-                    print("Error pausing Spotify playback: \(error)")
-                    return
-                }
-                
-                if let http = response as? HTTPURLResponse {
-                    let status = http.statusCode
-                    let body = data.flatMap { String(data: $0, encoding: .utf8) } ?? "<no body>"
-                    print("Spotify pause response status: \(status), body: \(body)")
-                }
-            }.resume()
+        // FIX: Replaced getValidAccessToken closure with direct access
+        guard let accessToken = SpotifyUserAuthorization.shared.accessToken else {
+            return
         }
+            
+        var components = URLComponents(string: "https://api.spotify.com/v1/me/player/pause")!
+        components.queryItems = [
+            URLQueryItem(name: "device_id", value: deviceId)
+        ]
+        
+        guard let url = components.url else {
+            print("Invalid Spotify pause URL with device_id")
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                print("Error pausing Spotify playback: \(error)")
+                return
+            }
+            
+            if let http = response as? HTTPURLResponse {
+                let status = http.statusCode
+                let body = data.flatMap { String(data: $0, encoding: .utf8) } ?? "<no body>"
+                print("Spotify pause response status: \(status), body: \(body)")
+            }
+        }.resume()
     }
 
     

@@ -15,10 +15,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         self.window = window
         ThemeManager.applyToAllWindows()
 
-        if Auth.auth().currentUser != nil {
-            //showMainApp(animated: false)
+        // Debug Print
+        if let user = Auth.auth().currentUser {
+            print("🚀 App Launch: User is signed in as \(user.uid)")
             loadUserPlaylistsAndShowMainApp(animated: false)
         } else {
+            print("🚀 App Launch: No user signed in. Showing Login.")
             showAuth(animated: false)
         }
 
@@ -64,18 +66,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             }
         }
     }
-
     
-
     // MARK: - Routing helpers
 
     func showAuth(animated: Bool = true) {
         PlaylistLibrary.clearLocal()
         let root = LoginViewController()
-        //let root = SignUpViewController()
-        // If you want a nav bar during auth, wrap in a UINavigationController too:
-        // let nav = UINavigationController(rootViewController: root)
-        // setRootViewController(nav, animated: animated)
         setRootViewController(root, animated: animated)
     }
 
@@ -111,7 +107,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
                 label.topAnchor.constraint(equalTo: activityIndicator.bottomAnchor, constant: 20)
             ])
             
-            setRootViewController(loadingVC, animated: false)
+            // Only show loading screen if we aren't already there to prevent flash
+            if !(window.rootViewController is FloatingBarDemoViewController) {
+                setRootViewController(loadingVC, animated: false)
+            }
         }
         
         PlaylistLibrary.loadPlaylists { success in
@@ -134,7 +133,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
                 nav.navigationBar.standardAppearance = appearance
                 nav.navigationBar.scrollEdgeAppearance = appearance
                 nav.navigationBar.compactAppearance = appearance
-                nav.navigationBar.tintColor = .white // <- back button & bar items
+                nav.navigationBar.tintColor = .white
 
                 nav.navigationBar.prefersLargeTitles = true
                 self.setRootViewController(nav, animated: animated)

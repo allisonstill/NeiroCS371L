@@ -42,14 +42,16 @@ final class GroupHostViewController: UIViewController {
         configureUI()
         layoutUI()
         
-        // SYNC
+        updateUIState()
+        
+        // SYNC LISTENER
         GroupManager.shared.listenToGroup(code: group.sessionCode) { [weak self] updatedGroup in
             guard let self = self else { return }
             self.group = updatedGroup
             self.tableView.reloadData()
             self.updateUIState()
-            self.checkAutoStart()
             
+            // Navigate if session started AND we have the playlist
             if updatedGroup.status == "started" {
                 self.navigateToSession()
             }
@@ -59,39 +61,141 @@ final class GroupHostViewController: UIViewController {
     private func updateUIState() {
         sessionCodeLabel.text = "Code: \(group.sessionCode)"
         
-        guard let me = myMember else { return }
+        let me = myMember
+        let isHost = me?.isHost ?? false
+        let isReady = me?.isReady ?? false
         
-        // BUTTON IS ALWAYS ENABLED
-        actionButton.isEnabled = true
-        
-        if me.isReady {
-            actionButton.setTitle("Ready! (Tap to Undo)", for: .normal)
-            actionButton.backgroundColor = .systemGreen
+        if isHost {
+            // HOST LOGIC
+            let others = group.members.filter { !$0.isHost }
+            let allOthersReady = others.allSatisfy { $0.isReady } && !others.isEmpty
+            
+            if allOthersReady {
+                actionButton.setTitle("Generate & Start 🚀", for: .normal)
+                actionButton.backgroundColor = .systemGreen
+                actionButton.isEnabled = true
+                actionButton.alpha = 1.0
+            } else {
+                let count = others.filter({ !$0.isReady }).count
+                actionButton.setTitle("Waiting for \(count)...", for: .normal)
+                actionButton.backgroundColor = .systemGray
+                actionButton.isEnabled = false
+                actionButton.alpha = 0.6
+            }
+            
         } else {
-            actionButton.setTitle("I'm Ready", for: .normal)
-            actionButton.backgroundColor = .systemBlue
-        }
-    }
-    
-    private func checkAutoStart() {
-        guard let me = myMember, me.isHost else { return }
-        let allReady = group.members.allSatisfy { $0.isReady }
-        
-        if allReady && group.status == "waiting" {
-            GroupManager.shared.startSession(code: group.sessionCode)
+            // GUEST LOGIC
+            actionButton.isEnabled = true
+            actionButton.alpha = 1.0
+            if isReady {
+                actionButton.setTitle("Ready! (Tap to Undo)", for: .normal)
+                actionButton.backgroundColor = .systemGreen
+            } else {
+                actionButton.setTitle("I'm Ready", for: .normal)
+                actionButton.backgroundColor = .systemBlue
+            }
         }
     }
 
     @objc private func actionTapped() {
         guard let me = myMember else { return }
-        let newState = !me.isReady
-        GroupManager.shared.updateMyState(code: group.sessionCode, emoji: me.emoji, isReady: newState)
+        
+        if me.isHost {
+            // HOST STARTS GENERATION
+            startGenerationProcess()
+        } else {
+            // GUEST TOGGLES READY
+            let newState = !me.isReady
+            GroupManager.shared.updateMyState(code: group.sessionCode, emoji: me.emoji, isReady: newState)
+        }
+    }
+    
+    // MARK: - Generation Logic (Host Only)
+    private func startGenerationProcess() {
+        let playlistMix = calculatePlaylistMix(group: group, totalSongsInPlaylist: 20)
+        
+        guard SpotifyUserAuthorization.shared.isConnected else {
+            // Fallback: Start session with NO songs (stats only)
+            print("⚠️ Spotify not connected. Starting stats-only session.")
+            GroupManager.shared.startSessionWithSongs(code: group.sessionCode, songs: [])
+            return
+        }
+        
+        let alert = UIAlertController(title: "Generating...", message: "Mixing the group's vibe...", preferredStyle: .alert)
+        present(alert, animated: true)
+        
+        PlaylistGenerator.shared.generateMixedPlaylist(from: playlistMix, on: self) { [weak self] result in
+            DispatchQueue.main.async {
+                alert.dismiss(animated: true)
+                guard let self = self else { return }
+                
+                switch result {
+                case .success(let playlist):
+                    print("✅ Generated \(playlist.songs.count) songs.")
+                    
+                    // 1. Rename Playlist to include Host Name
+                    let hostName = self.group.members.first(where: { $0.isHost })?.name ?? "Group"
+                    playlist.title = "\(hostName) Group Playlist"
+                    
+                    // 2. Save to Host's Personal History immediately
+                    PlaylistLibrary.addPlaylist(playlist) { _ in
+                        // Notify Home Screen to refresh
+                        NotificationCenter.default.post(name: .lastOpenedPlaylistDidChange, object: nil)
+                    }
+                    
+                    // 3. Save to Firebase Group Data -> Triggers Listener for everyone
+                    GroupManager.shared.startSessionWithSongs(code: self.group.sessionCode, songs: playlist.songs)
+                    
+                case .failure(let error):
+                    print("❌ Generation failed: \(error). Starting stats-only.")
+                    GroupManager.shared.startSessionWithSongs(code: self.group.sessionCode, songs: [])
+                }
+            }
+        }
+    }
+    
+    // MARK: - Navigation (Listener Triggered)
+    private func navigateToSession() {
+        GroupManager.shared.stopListening()
+        
+        let playlistMix = calculatePlaylistMix(group: group, totalSongsInPlaylist: 20)
+        
+        var finalPlaylist: Playlist? = nil
+        
+        // Use the shared songs from the database!
+        if let sharedSongs = group.sharedSongs, !sharedSongs.isEmpty {
+            
+            // Reconstruct the playlist
+            let hostName = group.members.first(where: { $0.isHost })?.name ?? "Group"
+            let title = "\(hostName) Group Playlist"
+            
+            finalPlaylist = Playlist(
+                title: title,
+                emoji: "✨",
+                createdAt: Date(),
+                songs: sharedSongs,
+                gradientColors: [UIColor.systemPurple, UIColor.systemBlue]
+            )
+            
+            // If I am NOT the host, save this to my history now
+            // (Host already saved it during generation)
+            if let me = myMember, !me.isHost, let playlistToSave = finalPlaylist {
+                PlaylistLibrary.addPlaylist(playlistToSave) { _ in
+                    NotificationCenter.default.post(name: .lastOpenedPlaylistDidChange, object: nil)
+                }
+            }
+        }
+        
+        let sessionVC = GroupSessionViewController(playlist: finalPlaylist, mix: playlistMix)
+        navigationController?.pushViewController(sessionVC, animated: true)
     }
     
     @objc private func leaveTapped() {
-        GroupManager.shared.leaveGroup(code: group.sessionCode) {
-            GroupManager.shared.stopListening()
-            self.navigationController?.popViewController(animated: true)
+        GroupManager.shared.stopListening()
+        GroupManager.shared.leaveGroup(code: group.sessionCode) { [weak self] in
+            DispatchQueue.main.async {
+                self?.navigationController?.popViewController(animated: true)
+            }
         }
     }
     
@@ -145,14 +249,6 @@ final class GroupHostViewController: UIViewController {
         ])
         
         present(pickerVC, animated: true)
-    }
-    
-    private func navigateToSession() {
-        GroupManager.shared.stopListening()
-        // Ensure you have PlaylistLogic.swift or the function helper
-        let playlistMix = calculatePlaylistMix(group: group, totalSongsInPlaylist: 20)
-        let sessionVC = GroupSessionViewController(mix: playlistMix)
-        navigationController?.pushViewController(sessionVC, animated: true)
     }
     
     private func configureUI() {

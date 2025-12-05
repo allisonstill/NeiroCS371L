@@ -81,6 +81,11 @@ final class JoinGroupViewController: UIViewController {
         joinButton.addTarget(self, action: #selector(joinTapped), for: .touchUpInside)
     }
     
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        // Dismisses the keyboard when tapping anywhere on the background
+        view.endEditing(true)
+    }
+    
     private func createEmojiButton(emoji: String) -> UIButton {
         let btn = UIButton(type: .system)
         btn.setTitle(emoji, for: .normal)
