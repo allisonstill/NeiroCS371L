@@ -128,13 +128,13 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
                 let appearance = UINavigationBarAppearance()
                 appearance.configureWithOpaqueBackground()
                 appearance.backgroundColor = ThemeColor.Color.backgroundColor
-                appearance.titleTextAttributes = [.foregroundColor: UIColor.white]
-                appearance.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
+                appearance.titleTextAttributes = [.foregroundColor: UIColor.label]
+                appearance.largeTitleTextAttributes = [.foregroundColor: UIColor.label]
 
                 nav.navigationBar.standardAppearance = appearance
                 nav.navigationBar.scrollEdgeAppearance = appearance
                 nav.navigationBar.compactAppearance = appearance
-                nav.navigationBar.tintColor = .white // <- back button & bar items
+                nav.navigationBar.tintColor = .label // <- back button & bar items
 
                 nav.navigationBar.prefersLargeTitles = true
                 self.setRootViewController(nav, animated: animated)

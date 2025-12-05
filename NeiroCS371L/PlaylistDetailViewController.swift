@@ -42,6 +42,7 @@ final class PlaylistDetailViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = ThemeColor.Color.backgroundColor
         setupNavigationBar()
+        configureFullScreenGradient()
         configureHeader()
         configureUpdateButton()
         configureTableView()
@@ -54,8 +55,23 @@ final class PlaylistDetailViewController: UIViewController {
     
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        gradientView.frame = headerView.bounds
+        gradientView.frame = view.bounds
     }
+    
+    private func configureFullScreenGradient() {
+            // Use the same colors you currently use for the header
+            let displayColors = playlist.gradientColors ?? generateGradientColors(from: playlist.emoji)
+            if playlist.gradientColors == nil {
+                playlist.gradientColors = displayColors
+            }
+
+            gradientView.colors = displayColors.map { $0.cgColor }
+            gradientView.startPoint = CGPoint(x: 0, y: 0)
+            gradientView.endPoint   = CGPoint(x: 1, y: 1)
+            gradientView.frame = view.bounds
+
+            view.layer.insertSublayer(gradientView, at: 0)
+        }
     
     deinit {
         stopPlayback()
@@ -79,17 +95,20 @@ final class PlaylistDetailViewController: UIViewController {
     
     private func configureHeader() {
         headerView.translatesAutoresizingMaskIntoConstraints = false
+        headerView.backgroundColor = .clear
         view.addSubview(headerView)
         
         //adding gradient background
-        let displayColors = playlist.gradientColors ?? generateGradientColors(from: playlist.emoji)
+        /*
+         let displayColors = playlist.gradientColors ?? generateGradientColors(from: playlist.emoji)
         if playlist.gradientColors == nil {
             playlist.gradientColors = displayColors
         }
-        gradientView.colors = displayColors.map {$0.cgColor}
+        // gradientView.colors = displayColors.map {$0.cgColor}
         gradientView.startPoint = CGPoint(x: 0, y: 0)
         gradientView.endPoint = CGPoint(x: 1, y: 1)
         headerView.layer.insertSublayer(gradientView, at: 0)
+         */
         
         //emoji on left side of header
         emojiLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -338,7 +357,7 @@ final class PlaylistDetailViewController: UIViewController {
     
     @objc private func backTapped() {
         onSave?(playlist)
-        navigationController?.popViewController(animated: true)
+        navigationController?.popToRootViewController(animated: true)
     }
     
     //updated update playlist button to now route to LLM Screen so users have the option to update the playlist based on English language preferences
@@ -525,11 +544,11 @@ final class SongRow: UITableViewCell {
         stackV.translatesAutoresizingMaskIntoConstraints = false
         
         titleLabel.font = .systemFont(ofSize: 16, weight: .semibold)
-        titleLabel.textColor = .white
+        titleLabel.textColor = .label
         titleLabel.numberOfLines = 1
 
         artistLabel.font = .systemFont(ofSize: 14, weight: .regular)
-        artistLabel.textColor = .lightGray
+        artistLabel.textColor = .secondaryLabel
         artistLabel.numberOfLines = 1
         
         stackV.addArrangedSubview(titleLabel)

@@ -164,7 +164,7 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
 
         usernameTitle.text = "Username:"
         usernameTitle.font = ThemeColor.Font.bodyAuthFont()
-        usernameTitle.textColor = .white
+        usernameTitle.textColor = .label
 
         usernameValue.text = "username"
         usernameValue.font = ThemeColor.Font.bodyAuthFont()
@@ -225,7 +225,7 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
 
         appearanceTitle.text = "Appearance"
         appearanceTitle.font = UIFont.boldSystemFont(ofSize: 22)
-        appearanceTitle.textColor = .white
+        appearanceTitle.textColor = .label
 
         appearanceSeg.addTarget(self, action: #selector(appearanceChanged), for: .valueChanged)
 
@@ -249,7 +249,7 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
 
         lengthTitle.text = "Length of Playlist"
         lengthTitle.font = UIFont.boldSystemFont(ofSize: 22)
-        lengthTitle.textColor = .white
+        lengthTitle.textColor = .label
 
         lengthSeg.addTarget(self, action: #selector(lengthChanged), for: .valueChanged)
 
@@ -288,7 +288,7 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         
         hipsterTitle.text = "Hipster Rating"
         hipsterTitle.font = UIFont.boldSystemFont(ofSize: 22)
-        hipsterTitle.textColor = .white
+        hipsterTitle.textColor = .label
         
         let symbolConfig = UIImage.SymbolConfiguration(pointSize: 16, weight: .regular)
         hipsterInfoButton.setImage(UIImage(systemName: "info.circle", withConfiguration: symbolConfig), for: .normal)
@@ -752,7 +752,7 @@ private final class PickerRow: UIControl {
 
     init(title: String) {
         super.init(frame: .zero)
-        backgroundColor = UIColor(white: 0.95, alpha: 1)
+        backgroundColor = UIColor(white: 1, alpha: 0.05)
         layer.cornerRadius = 18
 
         titleLabel.text = title
