@@ -7,6 +7,7 @@
 
 import UIKit
 import FirebaseAuth
+import FirebaseFirestore
 
 enum BackendData {
     static let allGenres: [String] = [
@@ -50,6 +51,10 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
     private let usernameValue = UILabel()
     private let spotifyPill = UIButton(type: .system)
     
+    //private let usernameLabel = UILabel()
+    //private let spotifyStatusLabel = UILabel()
+    //private let connectSpotifyButton = UIButton()
+
     private let appearanceCard = UIView()
     private let appearanceTitle = UILabel()
     private let appearanceSeg = UISegmentedControl(items: ["Dark", "Light", "System"])
@@ -99,6 +104,7 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         checkSpotifyConnection()
+        loadProfilePicture()
     }
 
     // MARK: - Build UI
@@ -143,6 +149,9 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
             avatar.widthAnchor.constraint(equalToConstant: 96),
             avatar.heightAnchor.constraint(equalToConstant: 96)
         ])
+        avatar.isUserInteractionEnabled = true
+        let avatarTap = UITapGestureRecognizer(target: self, action: #selector(changePhotoTapped))
+        avatar.addGestureRecognizer(avatarTap)
 
         changePhotoButton.setTitle("Change Profile Picture", for: .normal)
         changePhotoButton.setTitleColor(.systemBlue, for: .normal)
@@ -410,13 +419,20 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
     // MARK: - Actions
     @objc private func appearanceChanged() {
         let choice: AppAppearance = {
-            switch appearanceSeg.selectedSegmentIndex {
-            case 0: return .dark
-            case 1: return .light
-            default: return .system
-            }
-        }()
+                switch appearanceSeg.selectedSegmentIndex {
+                case 0: return .dark
+                case 1:
+                    // let style = "light"
+                    // SessionStore.appearanceStyle = style
+                    // applyAppearance(style)
+                    return .light
+                default: return .system
+                }
+            }()
         ThemeManager.set(choice)
+        // let style = (appearanceSeg.selectedSegmentIndex == 1) ? "dark" : "light"
+        // SessionStore.appearanceStyle = style
+        // applyAppearance(style)
     }
 
     @objc private func lengthChanged() {
@@ -458,6 +474,15 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
     }
 
     @objc private func changePhotoTapped() {
+//        let picker = UIImagePickerController()
+//        picker.sourceType = .photoLibrary
+//        picker.delegate = self
+//        present(picker, animated: true)
+        
+        let profilePictureVC = ProfilePictureViewController(isNewUser: false)
+        profilePictureVC.modalPresentationStyle = .fullScreen
+        present(profilePictureVC, animated: true)
+        /*
         let sheet = UIAlertController(title: "Profile Photo", message: "Choose a source", preferredStyle: .actionSheet)
 
         // Camera
@@ -488,7 +513,7 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         // Cancel
         sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         
-        present(sheet, animated: true)
+        present(sheet, animated: true)*/
     }
     
     @objc private func connectSpotifyTapped() {
@@ -590,6 +615,36 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         let user = Auth.auth().currentUser
         let display = user?.displayName ?? user?.email ?? "username"
         usernameValue.text = display
+        loadProfilePicture()
+    }
+    
+    private func loadProfilePicture() {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+        let db = Firestore.firestore()
+        
+        db.collection("users").document(userID).getDocument { [weak self] snapshot, error in
+            
+            guard let self = self, let data = snapshot?.data() else {return}
+            
+            // check if user has used a custom image
+            if let imageData = data["profileImageBase64"] as? String,
+               let data = Data(base64Encoded: imageData),
+               let image = UIImage(data: data) {
+                DispatchQueue.main.async {
+                    self.avatar.image = image
+                    self.avatar.contentMode = .scaleAspectFill
+                }
+            }
+            
+            // if user has an avatar name set, use the avatar from Assets
+            else if let avatarName = data["avatarName"] as? String,
+                    let avatarImage = UIImage(named: avatarName) {
+                DispatchQueue.main.async {
+                    self.avatar.image = avatarImage
+                    self.avatar.contentMode = .scaleAspectFill
+                }
+            }
+        }
     }
     
     //helper function to show alerts
