@@ -8,15 +8,15 @@
 import UIKit
 
 final class CreateGroupViewController: UIViewController {
-
+    
     private let nameField = UITextField()
     private let nameLabel = UILabel()
     private let emojiLabel = UILabel()
     private let continueButton = UIButton(type: .system)
-
+    
     private var collectionView: UICollectionView!
     private var selectedEmoji: String?
-
+    
     // reuse the same emoji palette
     private let emojis: [String] = [
         "😀","😎","🥲","😭",
@@ -24,13 +24,13 @@ final class CreateGroupViewController: UIViewController {
         "😌","🙂","🙃","😕",
         "🔥","❤️","⚡️","🤔"
     ]
-
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = ThemeColor.Color.backgroundColor
         title = "Create Group"
         navigationItem.largeTitleDisplayMode = .never
-
+        
         configureNameField()
         configureLabels()
         setupCollection()
@@ -38,7 +38,7 @@ final class CreateGroupViewController: UIViewController {
         layoutUI()
         applyButtonState()
     }
-
+    
     private func configureNameField() {
         nameField.translatesAutoresizingMaskIntoConstraints = false
         nameField.placeholder = "Friends Jam Session"
@@ -50,25 +50,25 @@ final class CreateGroupViewController: UIViewController {
         nameField.setRightPaddingPoints(12)
         nameField.addTarget(self, action: #selector(textDidChange), for: .editingChanged)
     }
-
+    
     private func configureLabels() {
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
         nameLabel.text = "Group Name"
         nameLabel.font = .systemFont(ofSize: 15, weight: .semibold)
         nameLabel.textColor = .white
-
+        
         emojiLabel.translatesAutoresizingMaskIntoConstraints = false
         emojiLabel.text = "Pick your mood emoji"
         emojiLabel.font = .systemFont(ofSize: 15, weight: .semibold)
         emojiLabel.textColor = .white
     }
-
+    
     private func setupCollection() {
         let layout = UICollectionViewFlowLayout()
         layout.minimumLineSpacing = 12
         layout.minimumInteritemSpacing = 12
         layout.sectionInset = UIEdgeInsets(top: 12, left: 0, bottom: 4, right: 0)
-
+        
         collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         collectionView.translatesAutoresizingMaskIntoConstraints = false
         collectionView.backgroundColor = .clear
@@ -76,7 +76,7 @@ final class CreateGroupViewController: UIViewController {
         collectionView.delegate = self
         collectionView.dataSource = self
     }
-
+    
     private func configureContinueButton() {
         continueButton.translatesAutoresizingMaskIntoConstraints = false
         continueButton.setTitle("Next", for: .normal)
@@ -85,16 +85,16 @@ final class CreateGroupViewController: UIViewController {
         continueButton.heightAnchor.constraint(equalToConstant: 52).isActive = true
         continueButton.addTarget(self, action: #selector(nextTapped), for: .touchUpInside)
     }
-
+    
     private func layoutUI() {
         let stack = UIStackView(arrangedSubviews: [nameLabel, nameField, emojiLabel, collectionView, continueButton])
         stack.axis = .vertical
         stack.spacing = 16
         stack.alignment = .fill
-
+        
         view.addSubview(stack)
         stack.translatesAutoresizingMaskIntoConstraints = false
-
+        
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20),
             stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
@@ -102,48 +102,45 @@ final class CreateGroupViewController: UIViewController {
             collectionView.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.35)
         ])
     }
-
+    
     private func applyButtonState() {
         let hasName = !(nameField.text ?? "").trimmingCharacters(in: .whitespaces).isEmpty
         let hasEmoji = selectedEmoji != nil
         let enabled = hasName && hasEmoji
-
+        
         continueButton.isEnabled = enabled
         continueButton.backgroundColor = enabled
-            ? UIColor.systemBlue.withAlphaComponent(0.9)
-            : UIColor.systemBlue.withAlphaComponent(0.4)
+        ? UIColor.systemBlue.withAlphaComponent(0.9)
+        : UIColor.systemBlue.withAlphaComponent(0.4)
         continueButton.setTitleColor(.white, for: .normal)
     }
-
+    
     // MARK: - Actions
-
+    
     @objc private func textDidChange() {
         applyButtonState()
     }
-
+    
     @objc private func nextTapped() {
         guard let emoji = selectedEmoji else { return }
-
-        let trimmedName = (nameField.text ?? "").trimmingCharacters(in: .whitespaces)
-        let groupName = trimmedName.isEmpty ? "Group \(emoji)" : trimmedName
-
-        let host = GroupMember(
-            id: UUID(),
-            name: "You",
-            emoji: emoji,
-            isHost: true
-        )
-
-        let group = LocalGroup(
-            id: UUID(),
-            name: groupName,
-            createdAt: Date(),
-            members: [host],
-            sessionCode: GroupManager.generateSessionCode()
-        )
-
-        let hostVC = GroupHostViewController(group: group)
-        navigationController?.pushViewController(hostVC, animated: true)
+        
+        let rawName = (nameField.text ?? "").trimmingCharacters(in: .whitespaces)
+        let userName = rawName.isEmpty ? "Group \(emoji)" : rawName
+        
+        // Use the Manager (Handles Firebase & ID generation automatically)
+        // We DO NOT manually create 'GroupMember' here anymore.
+        GroupManager.shared.createGroup(userName: userName) { [weak self] newGroup in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                
+                if let group = newGroup {
+                    let hostVC = GroupHostViewController(group: group)
+                    self.navigationController?.pushViewController(hostVC, animated: true)
+                } else {
+                    print("Error creating group")
+                }
+            }
+        }
     }
 }
 
