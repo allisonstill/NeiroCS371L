@@ -71,7 +71,7 @@ final class GroupHostViewController: UIViewController {
             let allOthersReady = others.allSatisfy { $0.isReady } && !others.isEmpty
             
             if allOthersReady {
-                actionButton.setTitle("Generate & Start 🚀", for: .normal)
+                actionButton.setTitle("Generate", for: .normal)
                 actionButton.backgroundColor = .systemGreen
                 actionButton.isEnabled = true
                 actionButton.alpha = 1.0
