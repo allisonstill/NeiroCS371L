@@ -122,3 +122,30 @@ class Playlist {
         return String(format: "%d:%02d", mins, secs)
     }
 }
+
+// MARK: - EXTENSION: Serialization for Firebase
+// This allows us to save the generated playlist to the database so everyone sees the same songs
+extension Song {
+    var toDict: [String: Any] {
+        var dict: [String: Any] = ["title": title]
+        if let artist = artist { dict["artist"] = artist }
+        if let album = album { dict["album"] = album }
+        if let genre = genre { dict["genre"] = genre }
+        if let lengthSeconds = lengthSeconds { dict["lengthSeconds"] = lengthSeconds }
+        if let albumURL = albumURL { dict["albumURL"] = albumURL }
+        return dict
+    }
+
+    convenience init?(dict: [String: Any]) {
+        guard let title = dict["title"] as? String else { return nil }
+        
+        self.init(
+            title: title,
+            artist: dict["artist"] as? String,
+            album: dict["album"] as? String,
+            genre: dict["genre"] as? String,
+            lengthSeconds: dict["lengthSeconds"] as? Int,
+            albumURL: dict["albumURL"] as? String
+        )
+    }
+}

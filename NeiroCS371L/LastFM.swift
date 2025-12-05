@@ -232,45 +232,55 @@ final class LastFMAPI {
 
     // Map emoji → Last.fm tags (no ambiguous "chill"/"love" where possible)
     private let emojiTagMap: [String: [String]] = [
-        "😀": ["pop", "dance pop", "electropop"],
-        "😃": ["pop", "dance pop", "electropop"],
-        "😄": ["pop", "dance pop", "electropop", "bubblegum pop",],
-        "😁": ["pop", "dance pop", "electropop"],
-
-        "😎": ["indie", "downtempo", "electronic"],
-
-        "🤔": ["ambient", "modern classical", "instrumental"],
-
+        // super happy / upbeat
+        "😀": ["happy", "pop", "dance pop"],
+        
+        // cool / chill
+        "😎": ["indie", "chill", "electronic"],
+        
+        // bittersweet / soft sad
         "🥲": ["indie folk", "singer-songwriter", "acoustic"],
-
+        
+        // full-on sad
         "😭": ["sad", "acoustic", "piano"],
-        "😢": ["sad", "acoustic", "piano"],
-
+        
+        // chaotic / hyped
         "🤪": ["edm", "big room", "electro house"],
-
-        "😂": ["pop", "bubblegum pop", "dance pop"],
+        
+        // silly / fun
         "🤣": ["pop", "bubblegum pop", "dance pop"],
-
-        "😍": ["romantic", "rnb", "soul"],
-        "🥰": ["romantic", "rnb", "soul"],
-        "❤️": ["romantic", "rnb", "soul"],
-
-        "😴": ["sleep", "ambient", "chillout"],
-        "🥱": ["sleep", "ambient", "chillout"],
-
-        "😰": ["ambient", "new age", "meditation"],
-        "😨": ["ambient", "new age", "meditation"],
-
-        "😠": ["metal", "hard rock", "nu metal"],
-        "😡": ["metal", "hard rock", "nu metal"],
-
-        "😌": ["acoustic", "chillout", "soft rock"],
-
-        "⚡": ["workout", "trap", "edm"],
+        
+        // sleep / background
+        "😴": ["calm", "ambient", "relaxing"],
+        
+        // neutral / background focus
+        "😐": ["lo-fi", "chillhop", "background"],
+        
+        // relaxed / content
+        "😌": ["acoustic", "mellow", "soft rock"],
+        
+        // gently upbeat
+        "🙂": ["indie pop", "folk", "upbeat"],
+        
+        // confused / introspective
+        "😕": ["alternative", "indie rock", "emo"],
+        
+        // worried / heavier sad
+        "😟": ["emo", "sad", "post-rock"],
+        
+        // hype / intense
         "🔥": ["workout", "trap", "edm"],
-
+        
+        // love / romantic
+        "❤️": ["romantic", "rnb", "soul"],
+        
+        // energetic / power up
+        "⚡": ["workout", "rock", "electronic"],
+        
+        // fallback
         "default": ["pop", "indie", "alternative"]
     ]
+
 
     // MARK: - Per-tag seed collection
 

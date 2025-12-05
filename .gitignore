@@ -31,3 +31,8 @@ LocalFixes.swift
 NeiroCS371L/GoogleService-Info.plist
 
 Secrets.xcconfig
+
+# Ignore accidental backups and copies
+*.backup
+*copy.xcodeproj
+*.xcworkspace/xcuserdata/

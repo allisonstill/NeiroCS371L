@@ -5,21 +5,87 @@
 //  Created by Allison Still on 11/12/25.
 //
 
-//helping to generate playlists for create, random, and eventually describe
-
 import UIKit
 
 final class PlaylistGenerator {
     static let shared = PlaylistGenerator()
     private init() {}
     
-    //generate playlist as long as spotify account is connected
+    // MARK: - NEW: Group Session Mix Generator
+    func generateMixedPlaylist(
+        from breakdown: [EmojiBreakdown],
+        on vc: UIViewController,
+        activityIndicator: UIActivityIndicatorView? = nil,
+        completion: @escaping (Result<Playlist, Error>) -> Void
+    ) {
+        // 1. Check Connection
+        guard SpotifyUserAuthorization.shared.isConnected else {
+            let error = NSError(domain: "PlaylistGenerator", code: 1, userInfo: [NSLocalizedDescriptionKey: "Not Connected to Spotify"])
+            completion(.failure(error))
+            return
+        }
+        
+        // 2. Start Loading UI
+        activityIndicator?.startAnimating()
+        vc.view.isUserInteractionEnabled = false
+        
+        let group = DispatchGroup()
+        var allSongs: [Song] = []
+        var requestErrors: [Error] = []
+        
+        // 3. Loop through every emoji in the breakdown
+        for item in breakdown {
+            if item.songCount > 0 {
+                group.enter()
+                // Use existing API to fetch songs for this specific emoji
+                SpotifyAPI.shared.generatePlaylist(for: item.emoji, targetSongCount: item.songCount) { result in
+                    switch result {
+                    case .success(let songs):
+                        allSongs.append(contentsOf: songs)
+                    case .failure(let error):
+                        print("⚠️ Failed to fetch songs for \(item.emoji): \(error.localizedDescription)")
+                        requestErrors.append(error)
+                    }
+                    group.leave()
+                }
+            }
+        }
+        
+        // 4. When all API calls finish
+        group.notify(queue: .main) {
+            activityIndicator?.stopAnimating()
+            vc.view.isUserInteractionEnabled = true
+            
+            if allSongs.isEmpty {
+                // If everything failed
+                let error = requestErrors.first ?? NSError(domain: "Generator", code: 0, userInfo: [NSLocalizedDescriptionKey: "Could not find any songs."])
+                completion(.failure(error))
+            } else {
+                // 5. Create the final Mixed Playlist
+                // Shuffle to mix the vibes together
+                let mixedSongs = allSongs.shuffled()
+                let gradient = self.generateGradientColors(from: "✨")
+                
+                let finalPlaylist = Playlist(
+                    title: "Group Session Mix",
+                    emoji: "✨",
+                    createdAt: Date(),
+                    songs: mixedSongs,
+                    gradientColors: gradient
+                )
+                
+                completion(.success(finalPlaylist))
+            }
+        }
+    }
+    
+    // MARK: - Existing Single User Generation
+    
     func generatePlaylistFromSpotify(for emoji: String,
                                      activityIndicator: UIActivityIndicatorView?,
                                      on vc: UIViewController,
                                      completion: @escaping (Result<Playlist, Error>) -> Void) {
         
-        //not connected to spotify, throw error
         guard SpotifyUserAuthorization.shared.isConnected else {
             let error = NSError(domain: "PlaylistGenerator", code: 1, userInfo: [NSLocalizedDescriptionKey: "Not Connected to Spotify"])
             completion(.failure(error))
@@ -29,12 +95,10 @@ final class PlaylistGenerator {
         activityIndicator?.startAnimating()
         vc.view.isUserInteractionEnabled = false
         
-        // get settings from Spotify Settings
         let settings = SpotifySettings.shared
         let targetCount = settings.playlistLength.songCount
         let excludedGenres = settings.excludedGenres
         
-        //generate playlist!
         SpotifyAPI.shared.generatePlaylist(
             for: emoji,
             targetSongCount: targetCount,
@@ -55,13 +119,13 @@ final class PlaylistGenerator {
         }
     }
     
+    // MARK: - ListenBrainz Generation
     func generatePlaylistFromListenBrainz(
         for emoji: String,
         activityIndicator: UIActivityIndicatorView?,
         on vc: UIViewController,
         completion: @escaping (Result<Playlist, Error>) -> Void
     ) {
-        // Ensure Spotify is connected, since we ultimately resolve via Spotify search
         guard SpotifyUserAuthorization.shared.isConnected else {
             let error = NSError(
                 domain: "PlaylistGenerator",
@@ -95,73 +159,69 @@ final class PlaylistGenerator {
         }
     }
     
-    // MARK: - Last.fm-based playlist generation
+    // MARK: - Last.fm Generation
         
-        func generatePlaylistFromLastFM(
-            for emoji: String,
-            nicheness: Int = 2,
-            activityIndicator: UIActivityIndicatorView?,
-            on vc: UIViewController,
-            completion: @escaping (Result<Playlist, Error>) -> Void
-        ) {
-            // still require Spotify connection, since we resolve to Spotify tracks
-            guard SpotifyUserAuthorization.shared.isConnected else {
-                let error = NSError(
-                    domain: "PlaylistGenerator",
-                    code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "Not Connected to Spotify"]
-                )
-                completion(.failure(error))
-                return
-            }
-            
-            activityIndicator?.startAnimating()
-            vc.view.isUserInteractionEnabled = false
-            
-            let settings = SpotifySettings.shared
-            let targetCount = settings.playlistLength.songCount
-            
-            let excludedArtists: Set<String> = SessionStore.unwantedArtists
-            let preferredArtists:Set<String> = SessionStore.preferredArtists
-            let preferredGenres: Set<String> = SessionStore.preferredGenres      // (as Last.fm-style tags)
-            
-            LastFMAPI.shared.generateSongsFromEmoji(
-                emoji,
-                nicheness: nicheness,
-                songCount: targetCount,
-                excludedArtists: excludedArtists,
-                preferredArtists: preferredArtists,
-                preferredGenres: preferredGenres
-            ) { result in
-                DispatchQueue.main.async {
-                    activityIndicator?.stopAnimating()
-                    vc.view.isUserInteractionEnabled = true
-                    
-                    switch result {
-                    case .success(let songs):
-                        let playlist = self.createPlaylist(emoji: emoji, songs: songs)
-                        completion(.success(playlist))
-                        
-                    case .failure(let error):
-                        completion(.failure(error))
-                    }
+    func generatePlaylistFromLastFM(
+        for emoji: String,
+        nicheness: Int = 2,
+        activityIndicator: UIActivityIndicatorView?,
+        on vc: UIViewController,
+        completion: @escaping (Result<Playlist, Error>) -> Void
+    ) {
+        guard SpotifyUserAuthorization.shared.isConnected else {
+            let error = NSError(
+                domain: "PlaylistGenerator",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Not Connected to Spotify"]
+            )
+            completion(.failure(error))
+            return
+        }
+          
+        activityIndicator?.startAnimating()
+        vc.view.isUserInteractionEnabled = false
+          
+        let settings = SpotifySettings.shared
+        let targetCount = settings.playlistLength.songCount
+          
+        let excludedArtists: Set<String> = SessionStore.unwantedArtists
+        let preferredArtists:Set<String> = SessionStore.preferredArtists
+        let preferredGenres: Set<String> = SessionStore.preferredGenres
+          
+        LastFMAPI.shared.generateSongsFromEmoji(
+            emoji,
+            nicheness: nicheness,
+            songCount: targetCount,
+            excludedArtists: excludedArtists,
+            preferredArtists: preferredArtists,
+            preferredGenres: preferredGenres
+        ) { result in
+            DispatchQueue.main.async {
+                activityIndicator?.stopAnimating()
+                vc.view.isUserInteractionEnabled = true
+                  
+                switch result {
+                case .success(let songs):
+                    let playlist = self.createPlaylist(emoji: emoji, songs: songs)
+                    completion(.success(playlist))
+                      
+                case .failure(let error):
+                    completion(.failure(error))
                 }
             }
         }
+    }
 
+    // MARK: - Helpers
     
-    //private helper to create playlist based on songs given (return playlist)
     private func createPlaylist(emoji: String, songs: [Song]) -> Playlist {
         let playlistName = getPlaylistName(for: emoji)
         let gradientColors = generateGradientColors(from: emoji)
         
-        //return playlist!
         return Playlist(title: playlistName, emoji: emoji, createdAt: Date(), songs: songs, gradientColors: gradientColors)
     }
     
-    //save playlist to Firebase
     func savePlaylist( _ playlist: Playlist, activityIndicator: UIActivityIndicatorView? = nil, completion: @escaping (Bool) -> Void) {
-        
         PlaylistLibrary.addPlaylist(playlist) { success in
             DispatchQueue.main.async {
                 if success {
@@ -172,7 +232,6 @@ final class PlaylistGenerator {
         }
     }
     
-    //generate gradient colors (UI purposes)
     func generateGradientColors(from emoji: String) -> [UIColor] {
         let hash = emoji.hashValue
         let firstHue = CGFloat((hash & 0xFF)) / 255.0
@@ -184,22 +243,16 @@ final class PlaylistGenerator {
         return [firstColor, secondColor]
     }
     
-    //TODO: generate playlist names based on the emoji
-    // as of now, just returning default name
     func getPlaylistName(for emoji: String) -> String {
         return "New \(emoji) Playlist"
     }
     
-    //export playlist to spotify (on user account)
     func exportToSpotify(playlist: Playlist, activityIndicator: UIActivityIndicatorView?) {
         activityIndicator?.startAnimating()
         
         SpotifyAPI.shared.exportPlaylist(playlist: playlist) { result in
-            
             DispatchQueue.main.async {
                 activityIndicator?.stopAnimating()
-                
-                //TODO: eventually, we might want to add this as a link or button to actually go to the spotify account
                 switch result {
                 case .success(let url):
                     print("Playlist exported to \(url)")
@@ -210,13 +263,11 @@ final class PlaylistGenerator {
         }
     }
     
-    //check if there is already a playlist made with this emoji
     func existingPlaylist(for emoji: String) -> Playlist? {
         let existingPlaylists = PlaylistLibrary.playlists(for: emoji)
         return existingPlaylists.first
     }
     
-    // generate an alert that the spotify has not been connected yet
     static func checkSpotifyConnection(on vc: UIViewController) -> Bool {
         if !SpotifyUserAuthorization.shared.isConnected {
             showAlert(on: vc, title: "Connect Spotify", message: "Please connect your Spotify account to generate playlists!")
@@ -225,10 +276,9 @@ final class PlaylistGenerator {
         return true
     }
     
-    //general alert (helper function)
     static func showAlert(on vc: UIViewController, title: String, message: String){
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default))
         vc.present(alert, animated: true)
-    }   
+    }
 }
