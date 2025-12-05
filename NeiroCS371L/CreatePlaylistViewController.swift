@@ -36,7 +36,9 @@ final class CreatePlaylistViewController: UIViewController {
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        checkSpotifyConnection()
+        if !checkSpotifyConnection() {
+            print("ERROR: NO SPOTIFY CONNECTION")
+        }
     }
 
 
@@ -115,7 +117,7 @@ final class CreatePlaylistViewController: UIViewController {
         }
         
         // Generate a playlist based on this emoji
-        generatePlaylistFromSpotify(for: emoji)
+        generatePlaylistFromLastFM(for: emoji)
     }
     
     private func setupActivityIndicator() {
@@ -131,8 +133,8 @@ final class CreatePlaylistViewController: UIViewController {
         
     }
     
-    private func checkSpotifyConnection() {
-        PlaylistGenerator.checkSpotifyConnection(on: self)
+    private func checkSpotifyConnection() -> Bool {
+        return PlaylistGenerator.checkSpotifyConnection(on: self)
     }
 
     // MARK: Actions
@@ -165,6 +167,60 @@ final class CreatePlaylistViewController: UIViewController {
                 
             case .failure(let error):
                 PlaylistGenerator.showAlert(on: self, title: "Error", message: "We were not able to generate a playlist: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    
+    private func generatePlaylistFromListenBrainz(for emoji: String) {
+        guard PlaylistGenerator.checkSpotifyConnection(on: self) else { return }
+
+        PlaylistGenerator.shared.generatePlaylistFromListenBrainz(
+            for: emoji,
+            activityIndicator: activityIndicator,
+            on: self
+        ) { [weak self] result in
+
+            guard let self = self else { return }
+
+            switch result {
+            case .success(let playlist):
+                self.saveAndShowPlaylist(playlist)
+
+            case .failure(let error):
+                PlaylistGenerator.showAlert(
+                    on: self,
+                    title: "Error",
+                    message: "We were not able to generate a playlist: \(error.localizedDescription)"
+                )
+            }
+        }
+    }
+    
+    private func generatePlaylistFromLastFM(for emoji: String) {
+        guard PlaylistGenerator.checkSpotifyConnection(on: self) else { return }
+        
+        // for now, fixed nicheness = 2 (slightly away from page 1, still mostly popular)
+        let nicheness = 2
+        
+        PlaylistGenerator.shared.generatePlaylistFromLastFM(
+            for: emoji,
+            nicheness: nicheness,
+            activityIndicator: activityIndicator,
+            on: self
+        ) { [weak self] result in
+            guard let self = self else { return }
+            
+            switch result {
+            case .success(let playlist):
+                self.saveAndShowPlaylist(playlist)
+                
+            case .failure(let error):
+                PlaylistGenerator.showAlert(
+                    on: self,
+                    title: "Error",
+                    message: "We were not able to generate a playlist: \(error.localizedDescription)"
+                )
             }
         }
     }

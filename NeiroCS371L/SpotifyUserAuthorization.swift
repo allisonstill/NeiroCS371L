@@ -18,7 +18,7 @@ class SpotifyUserAuthorization {
     
     private let clientID = "07271e8ef7c546809d97abfe7b3143e6"
     private let redirectURI = "neiro://spotify-callback"
-    private let scope = "user-read-email user-read-private playlist-modify-public playlist-modify-private"
+    private let scope = "user-read-email user-read-private playlist-modify-public user-read-email playlist-modify-private user-modify-playback-state user-read-playback-state"
     
     private var verifier: String?
     private var safariVC: SFSafariViewController?
@@ -435,6 +435,8 @@ class SpotifyUserAuthorization {
         alert.addAction(UIAlertAction(title: "OK", style: .default))
         topVC.present(alert, animated: true)
     }
+    
+    
     
     //disconnect and log out/clear data
     func disconnect() {

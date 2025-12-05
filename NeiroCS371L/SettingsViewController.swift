@@ -11,7 +11,7 @@ import FirebaseFirestore
 
 enum BackendData {
     static let allGenres: [String] = [
-        "Pop","Rock","Rap","Hip-Hop","R&B","EDM","House","Techno","Trance","Drum & Bass",
+        "Pop","Rock","Rap","Hip-Hop","R&B","EDM","House","Techno","Trance","Drum & Bass", "Deep House",
         "Lo-Fi","Indie","Alternative","Funk","Soul","Jazz","Blues","Classical","Country",
         "Reggae","K-Pop","J-Pop","Metal","Punk","Folk","Latin","Afrobeats","Dancehall"
     ]
@@ -23,7 +23,7 @@ enum BackendData {
 }
 
 // One-session memory for this screen
-private enum SessionStore {
+enum SessionStore {
     static var appearanceStyle: String = "light" // "dark" | "light"
     static var playlistMinutes: Int = 10
     static var avatarImage: UIImage?
@@ -31,6 +31,7 @@ private enum SessionStore {
     static var preferredArtists = Set<String>()
     static var unwantedGenres   = Set<String>()
     static var unwantedArtists  = Set<String>()
+    static var hipsterRating: Int = 2   // 1 = most mainstream, 10 = most niche
 }
 
 final class SettingsViewController: UIViewController, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
@@ -67,6 +68,15 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
     private let preferredArtistsRow = PickerRow(title: "Preferred Artists")
     private let unwantedGenresRow   = PickerRow(title: "Unwanted Genres")
     private let unwantedArtistsRow  = PickerRow(title: "Unwanted Artists")
+    
+    // Hipster rating UI
+    private let hipsterCard = UIView()
+    private let hipsterTitle = UILabel()
+    private let hipsterInfoButton = UIButton(type: .system)
+    private let hipsterSlider = UISlider()
+    private let hipsterLabelsRow = UIStackView()
+    private let hipsterLeftLabel = UILabel()
+    private let hipsterRightLabel = UILabel()
 
     // Local copies bound to SessionStore
     private var preferredGenresList  = Set<String>()
@@ -84,6 +94,7 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         buildAppearance()
         buildLength()
         buildPreferenceRows()
+        buildHipsterRating()
         buildActions()
         loadFromSession()
         populateUser()
@@ -201,7 +212,6 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
                 usernameValue.text = spotifyName
             }
         } else {
-            
             var pillCfg = spotifyPill.configuration
             pillCfg?.title = "Connect Spotify"
             pillCfg?.baseBackgroundColor = UIColor.systemRed.withAlphaComponent(0.9)
@@ -271,6 +281,64 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
 
         refreshPickerSubtitles()
     }
+    
+    private func buildHipsterRating() {
+        stylizeCard(hipsterCard)
+        content.addArrangedSubview(hipsterCard)
+        
+        hipsterTitle.text = "Hipster Rating"
+        hipsterTitle.font = UIFont.boldSystemFont(ofSize: 22)
+        hipsterTitle.textColor = .white
+        
+        let symbolConfig = UIImage.SymbolConfiguration(pointSize: 16, weight: .regular)
+        hipsterInfoButton.setImage(UIImage(systemName: "info.circle", withConfiguration: symbolConfig), for: .normal)
+        hipsterInfoButton.tintColor = .secondaryLabel
+        hipsterInfoButton.addTarget(self, action: #selector(hipsterInfoTapped), for: .touchUpInside)
+        hipsterInfoButton.setContentHuggingPriority(.required, for: .horizontal)
+        hipsterInfoButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+        
+        let headerStack = UIStackView(arrangedSubviews: [hipsterTitle, hipsterInfoButton])
+        headerStack.axis = .horizontal
+        headerStack.alignment = .center
+        headerStack.distribution = .fill
+        headerStack.spacing = 8
+        
+        hipsterTitle.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        
+        hipsterSlider.minimumValue = 1
+        hipsterSlider.maximumValue = 10
+        hipsterSlider.isContinuous = true
+        hipsterSlider.addTarget(self, action: #selector(hipsterRatingChanged(_:)), for: .valueChanged)
+        
+        hipsterLeftLabel.text = "Most Mainstream"
+        hipsterLeftLabel.font = UIFont.systemFont(ofSize: 12)
+        hipsterLeftLabel.textColor = .secondaryLabel
+        
+        hipsterRightLabel.text = "Most Niche"
+        hipsterRightLabel.font = UIFont.systemFont(ofSize: 12)
+        hipsterRightLabel.textColor = .secondaryLabel
+        hipsterRightLabel.textAlignment = .right
+        
+        hipsterLabelsRow.axis = .horizontal
+        hipsterLabelsRow.alignment = .center
+        hipsterLabelsRow.distribution = .equalSpacing
+        hipsterLabelsRow.spacing = 8
+        hipsterLabelsRow.addArrangedSubview(hipsterLeftLabel)
+        hipsterLabelsRow.addArrangedSubview(hipsterRightLabel)
+        
+        let v = UIStackView(arrangedSubviews: [headerStack, hipsterSlider, hipsterLabelsRow])
+        v.axis = .vertical
+        v.spacing = 12
+        
+        hipsterCard.addSubview(v)
+        v.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            v.topAnchor.constraint(equalTo: hipsterCard.topAnchor, constant: 16),
+            v.leadingAnchor.constraint(equalTo: hipsterCard.leadingAnchor, constant: 16),
+            v.trailingAnchor.constraint(equalTo: hipsterCard.trailingAnchor, constant: -16),
+            v.bottomAnchor.constraint(equalTo: hipsterCard.bottomAnchor, constant: -16)
+        ])
+    }
 
     private func buildActions() {
         let clearHistoryButton = UIButton(type: .system)
@@ -317,6 +385,8 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         preferredArtistsList = SessionStore.preferredArtists
         unwantedGenresList   = SessionStore.unwantedGenres
         unwantedArtistsList  = SessionStore.unwantedArtists
+        
+        hipsterSlider.value = Float(SessionStore.hipsterRating)
 
         if let img = SessionStore.avatarImage {
             avatar.image = img
@@ -329,6 +399,7 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         SessionStore.preferredArtists = preferredArtistsList
         SessionStore.unwantedGenres   = unwantedGenresList
         SessionStore.unwantedArtists  = unwantedArtistsList
+        // hipsterRating stored live in hipsterRatingChanged(_:)
     }
 
     private func summaryText(for set: Set<String>) -> String {
@@ -347,7 +418,6 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
 
     // MARK: - Actions
     @objc private func appearanceChanged() {
-        // ["Dark","Light"] => index 0 is dark
         let choice: AppAppearance = {
                 switch appearanceSeg.selectedSegmentIndex {
                 case 0: return .dark
@@ -368,6 +438,21 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
     @objc private func lengthChanged() {
         let minutes = [10, 30, 60, 120][lengthSeg.selectedSegmentIndex]
         SessionStore.playlistMinutes = minutes
+    }
+    
+    @objc private func hipsterRatingChanged(_ sender: UISlider) {
+        // Snap to integer values 1–10
+        var value = Int(round(sender.value))
+        value = max(1, min(10, value))
+        sender.value = Float(value)
+        SessionStore.hipsterRating = value
+    }
+    
+    @objc private func hipsterInfoTapped() {
+        showAlert(
+            title: "Hipster Rating",
+            message: "Control how popular your recommendations are.\n\n1 = Most Mainstream (big hits)\n10 = Most Niche (underground or lesser-known songs)."
+        )
     }
 
     private func applyAppearance(_ style: String) {

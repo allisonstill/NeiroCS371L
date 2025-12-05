@@ -183,7 +183,7 @@ class SpotifyAPI {
             )
         }
     }
-    
+
     // based on a given emoji, generate a playlist
     // by default, number of songs is 10 (medium playlist length)
     func generatePlaylist(

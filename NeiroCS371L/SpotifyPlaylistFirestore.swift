@@ -61,7 +61,7 @@ class SpotifyPlaylistFirestore {
                 return self.dictToPlaylist(doc.data())
             }
             
-            print("Loaded: \(playlists.count) playlists from Firebase")
+            //print("Loaded: \(playlists.count) playlists from Firebase")
             completion(.success(playlists))
         }
     }
