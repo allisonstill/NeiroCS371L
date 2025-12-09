@@ -126,6 +126,19 @@ final class JoinGroupViewController: UIViewController {
     }
 
     @objc private func joinTapped() {
+        
+        //guard against users who aren't logged into spotify
+        guard SpotifyUserAuthorization.shared.isConnected else {
+                let alert = UIAlertController(
+                    title: "Connect Spotify",
+                    message: "You need to connect your Spotify account before starting a group session so we can build a playlist from everyone's vibe.",
+                    preferredStyle: .alert
+                )
+                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                present(alert, animated: true)
+                return
+            }
+        
         let code = (codeField.text ?? "").uppercased().trimmingCharacters(in: .whitespaces)
         let name = (nameField.text ?? "").trimmingCharacters(in: .whitespaces)
         

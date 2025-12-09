@@ -133,11 +133,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
                 nav.navigationBar.standardAppearance = appearance
                 nav.navigationBar.scrollEdgeAppearance = appearance
                 nav.navigationBar.compactAppearance = appearance
-<<<<<<< HEAD
                 nav.navigationBar.tintColor = .label // <- back button & bar items
-=======
                 nav.navigationBar.tintColor = .white
->>>>>>> main
 
                 nav.navigationBar.prefersLargeTitles = true
                 self.setRootViewController(nav, animated: animated)

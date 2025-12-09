@@ -17,6 +17,10 @@
 	</array>
 	<key>GEMINI_API_KEY</key>
 	<string>$(GEMINI_API_KEY)</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Neiro needs your location to show public group sessions near you on the map.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Neiro needs your location to show public group sessions near you on the map.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

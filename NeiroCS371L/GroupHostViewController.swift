@@ -11,6 +11,7 @@ final class GroupHostViewController: UIViewController {
 
     var group: LocalGroup
     
+    private let sessionInfoLabel = UILabel()
     private let sessionCodeLabel = UILabel()
     private let tableView = UITableView()
     private let actionButton = UIButton(type: .system)
@@ -18,7 +19,7 @@ final class GroupHostViewController: UIViewController {
     
     private let emojiOptions = [
         "😀", "😎", "🥲", "😭",
-        "🤪", "🤩", "😴", "😐",
+        "🤪", "🤩", "😴", "😍",
         "😌", "🙂", "🙃", "😕",
         "🔥", "❤️", "⚡️", "💀"
     ]
@@ -37,6 +38,8 @@ final class GroupHostViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
+        navigationItem.hidesBackButton = true // encourage leave button
+        navigationController?.interactivePopGestureRecognizer?.isEnabled = false
         navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Leave", style: .plain, target: self, action: #selector(leaveTapped))
         
         configureUI()
@@ -47,6 +50,12 @@ final class GroupHostViewController: UIViewController {
         // SYNC LISTENER
         GroupManager.shared.listenToGroup(code: group.sessionCode) { [weak self] updatedGroup in
             guard let self = self else { return }
+            
+            // Check for new join requests (host only)
+            if let me = self.myMember, me.isHost {
+                self.handleNewJoinRequests(old: self.group, new: updatedGroup)
+            }
+            
             self.group = updatedGroup
             self.tableView.reloadData()
             self.updateUIState()
@@ -58,7 +67,75 @@ final class GroupHostViewController: UIViewController {
         }
     }
     
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if self.isMovingFromParent {
+            if group.status == "waiting" {
+                        GroupManager.shared.leaveGroup(code: group.sessionCode) {
+                            print("Auto-left group on back navigation: \(self.group.sessionCode)")
+                        }
+                    } else {
+                        // For started sessions, you might want different behavior
+                        GroupManager.shared.stopListening()
+                    }
+        }
+    }
+    
+    // MARK: - Join Request Handling
+    
+    private func handleNewJoinRequests(old: LocalGroup, new: LocalGroup) {
+        // Find new pending requests
+        let oldPendingIds = Set(old.pendingRequests.filter { $0.status == "pending" }.map { $0.userId })
+        let newPendingRequests = new.pendingRequests.filter {
+            $0.status == "pending" && !oldPendingIds.contains($0.userId)
+        }
+        
+        // Show alert for each new request
+        for request in newPendingRequests {
+            showJoinRequestAlert(request: request)
+        }
+    }
+    
+    private func showJoinRequestAlert(request: JoinRequest) {
+        let alert = UIAlertController(
+            title: "Join Request",
+            message: "\(request.userName) wants to join your session!",
+            preferredStyle: .alert
+        )
+        
+        alert.addAction(UIAlertAction(title: "Accept", style: .default) { [weak self] _ in
+            self?.handleJoinRequest(request: request, approved: true)
+        })
+        
+        alert.addAction(UIAlertAction(title: "Deny", style: .destructive) { [weak self] _ in
+            self?.handleJoinRequest(request: request, approved: false)
+        })
+        
+        present(alert, animated: true)
+    }
+    
+    private func handleJoinRequest(request: JoinRequest, approved: Bool) {
+        // Choose a default emoji for the new member
+        let defaultEmoji = "😊"
+        
+        GroupManager.shared.handleJoinRequest(
+            groupCode: group.sessionCode,
+            request: request,
+            approved: approved,
+            emoji: defaultEmoji
+        ) { success in
+            if success {
+                print("Join request \(approved ? "accepted" : "denied")")
+            } else {
+                print("Failed to handle join request")
+            }
+        }
+    }
+    
     private func updateUIState() {
+        // Update session info
+        let typeText = group.isPublic ? "Public" : "Private"
+        sessionInfoLabel.text = "\(group.sessionName) • \(typeText)"
         sessionCodeLabel.text = "Code: \(group.sessionCode)"
         
         let me = myMember
@@ -115,9 +192,10 @@ final class GroupHostViewController: UIViewController {
         let playlistMix = calculatePlaylistMix(group: group, totalSongsInPlaylist: 20)
         
         guard SpotifyUserAuthorization.shared.isConnected else {
-            // Fallback: Start session with NO songs (stats only)
-            print("⚠️ Spotify not connected. Starting stats-only session.")
-            GroupManager.shared.startSessionWithSongs(code: group.sessionCode, songs: [])
+            //guard against users who aren't logged into spotify
+            let alert = UIAlertController( title: "Connect Spotify", message: "You need to connect your Spotify account before starting a group session so we can build a playlist from everyone's vibe.", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
             return
         }
         
@@ -133,9 +211,8 @@ final class GroupHostViewController: UIViewController {
                 case .success(let playlist):
                     print("✅ Generated \(playlist.songs.count) songs.")
                     
-                    // 1. Rename Playlist to include Host Name
-                    let hostName = self.group.members.first(where: { $0.isHost })?.name ?? "Group"
-                    playlist.title = "\(hostName) Group Playlist"
+                    // 1. Rename Playlist to include Session Name
+                    playlist.title = self.group.sessionName
                     
                     // 2. Save to Host's Personal History immediately
                     PlaylistLibrary.addPlaylist(playlist) { _ in
@@ -166,8 +243,7 @@ final class GroupHostViewController: UIViewController {
         if let sharedSongs = group.sharedSongs, !sharedSongs.isEmpty {
             
             // Reconstruct the playlist
-            let hostName = group.members.first(where: { $0.isHost })?.name ?? "Group"
-            let title = "\(hostName) Group Playlist"
+            let title = group.sessionName
             
             finalPlaylist = Playlist(
                 title: title,
@@ -252,8 +328,12 @@ final class GroupHostViewController: UIViewController {
     }
     
     private func configureUI() {
+        sessionInfoLabel.textAlignment = .center
+        sessionInfoLabel.font = .systemFont(ofSize: 20, weight: .semibold)
+        sessionInfoLabel.numberOfLines = 0
+        
         sessionCodeLabel.textAlignment = .center
-        sessionCodeLabel.font = .systemFont(ofSize: 28, weight: .heavy)
+        sessionCodeLabel.font = .systemFont(ofSize: 24, weight: .heavy)
         
         actionButton.layer.cornerRadius = 14
         actionButton.titleLabel?.font = .boldSystemFont(ofSize: 18)
@@ -271,9 +351,11 @@ final class GroupHostViewController: UIViewController {
     }
     
     private func layoutUI() {
-        let stack = UIStackView(arrangedSubviews: [sessionCodeLabel, tableView, changeEmojiButton, actionButton])
+        let stack = UIStackView(arrangedSubviews: [sessionInfoLabel, sessionCodeLabel, tableView, changeEmojiButton, actionButton])
         stack.axis = .vertical
-        stack.spacing = 16
+        stack.spacing = 12
+        stack.setCustomSpacing(4, after: sessionInfoLabel)
+        stack.setCustomSpacing(16, after: sessionCodeLabel)
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)
         
