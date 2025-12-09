@@ -150,16 +150,16 @@ class DescribeLLMViewController: UIViewController, UITextViewDelegate {
         
         let lowercase = text.lowercased()
         
-        // ensure input text contains time before LLM call
-        let textContainsTime = lowercase.contains("minute") || lowercase.contains("min") || lowercase.contains("hour") || lowercase.contains("short") || lowercase.contains("medium") || lowercase.contains("long") || lowercase.contains("extra")
-        
-        // ensure input text contains mood before LLM call
-        let textContainsMood = lowercase.contains("happy") || lowercase.contains("sad") || lowercase.contains("chill") || lowercase.contains("calm") || lowercase.contains("upbeat") || lowercase.contains("energetic") || lowercase.contains("romantic") || lowercase.contains("angry") || lowercase.contains("relaxed") || lowercase.contains("vibe")
-        
-        if !textContainsMood || !textContainsTime {
-            showAlert(title: "More Details Needed", message: "Please include both a mood and a playlist length (time). For example, try asking for a 'calm 30-minute playlist'.")
-            return
-        }
+//        // ensure input text contains time before LLM call
+//        let textContainsTime = lowercase.contains("minute") || lowercase.contains("min") || lowercase.contains("hour") || lowercase.contains("short") || lowercase.contains("medium") || lowercase.contains("long") || lowercase.contains("extra")
+//
+//        // ensure input text contains mood before LLM call
+//        let textContainsMood = lowercase.contains("happy") || lowercase.contains("sad") || lowercase.contains("chill") || lowercase.contains("calm") || lowercase.contains("upbeat") || lowercase.contains("energetic") || lowercase.contains("romantic") || lowercase.contains("angry") || lowercase.contains("relaxed") || lowercase.contains("vibe")
+//
+//        if !textContainsMood || !textContainsTime {
+//            showAlert(title: "More Details Needed", message: "Please include both a mood and a playlist length (time). For example, try asking for a 'calm 30-minute playlist'.")
+//            return
+//        }
         
         // change create button text as indicator of LLM request working
         setLoading(true, title: updatingPlaylist == nil ? "Generating..." : "Updating...")
@@ -267,21 +267,30 @@ class DescribeLLMViewController: UIViewController, UITextViewDelegate {
         // use desired length
         SpotifySettings.shared.playlistLength = length
         
-        // generate playlist call
-        PlaylistGenerator.shared.generatePlaylistFromSpotify(for: emoji, activityIndicator: nil, on: self) { [weak self] result in
+        // generate playlist call (now using LastFM instead of Spotify)
+        PlaylistGenerator.shared.generatePlaylistFromLastFM(
+            for: emoji,
+            nicheness: SessionStore.hipsterRating,
+            activityIndicator: nil,
+            on: self
+        ) { [weak self] result in
             
             DispatchQueue.main.async {
-                guard let self else {return}
+                guard let self else { return }
                 self.setLoading(false, title: "Generate Playlist")
                 
                 switch result {
                 
                 // failed to create a playlist, show alert to user
                 case .failure(let error):
-                    PlaylistGenerator.showAlert(on: self, title: "Error", message: "We couldn't generate a new playlist: \(error.localizedDescription)")
+                    PlaylistGenerator.showAlert(
+                        on: self,
+                        title: "Error",
+                        message: "We couldn't generate a new playlist: \(error.localizedDescription)"
+                    )
                 
                 // created a new playlist! save and show the new playlist!
-                case .success (let playlist):
+                case .success(let playlist):
                     PlaylistGenerator.shared.savePlaylist(playlist) { _ in }
                     self.onCreate?(playlist)
                     
@@ -294,6 +303,7 @@ class DescribeLLMViewController: UIViewController, UITextViewDelegate {
             
         }
     }
+
         
     // Called when the user clicks on the view outside of the UITextField
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {

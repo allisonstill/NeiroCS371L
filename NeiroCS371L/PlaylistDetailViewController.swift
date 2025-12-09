@@ -34,6 +34,8 @@ final class PlaylistDetailViewController: UIViewController {
     private let exportBlurView = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
     private let activityIndicator = UIActivityIndicatorView(style: .medium)
     
+    private let bottomPaddingRowCount = 1
+    
     private let openSpotifyMsg = "Open the Spotify app, start any song, then come back to Neiro.\nMust have Spotify Premium!\n\n(We know, it's annoying :/)"
     
     private static let dateFormatter: DateFormatter = {
@@ -684,11 +686,23 @@ final class PlaylistDetailViewController: UIViewController {
 extension PlaylistDetailViewController: UITableViewDataSource, UITableViewDelegate {
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        playlist.songs.count
+        // real songs + a couple invisible padding rows at the bottom
+        return playlist.songs.count + bottomPaddingRowCount
     }
 
     func tableView(_ tableView: UITableView,
                    cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+
+        // If this is one of the padding rows, return a blank, transparent cell
+        if indexPath.row >= playlist.songs.count {
+            let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
+            cell.selectionStyle = .none
+            cell.backgroundColor = .clear
+            cell.contentView.backgroundColor = .clear
+            return cell
+        }
+
+        // Normal song cell
         let cell = tableView.dequeueReusableCell(withIdentifier: "SongRow",
                                                  for: indexPath) as! SongRow
         let song = playlist.songs[indexPath.row]
@@ -701,12 +715,18 @@ extension PlaylistDetailViewController: UITableViewDataSource, UITableViewDelega
     }
 
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-        80
+        // Same height for real rows and padding rows, just blank for the padding ones
+        return 80
     }
     
-    func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+    func tableView(_ tableView: UITableView,
+                   trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+        // Don't allow swipe-to-delete on the padding rows
+        guard indexPath.row < playlist.songs.count else {
+            return nil
+        }
+
         let deleteAction = UIContextualAction(style: .destructive, title: "Remove") { [weak self] _, _, completion in
-            
             self?.removeSong(at: indexPath)
             completion(true)
         }
@@ -719,6 +739,7 @@ extension PlaylistDetailViewController: UITableViewDataSource, UITableViewDelega
         tableView.deleteRows(at: [indexPath], with: .fade)
     }
 }
+
 
 // MARK: - Custom Song Cell
 final class SongRow: UITableViewCell {

@@ -72,19 +72,39 @@ final class DescribeLLMModels {
         
         // Prompt that goes into Gemini - we might want to edit this in the future for added emojis
         let modelInput = """
-        You are helping an iOS playlist generation app, called Neiro. Users may either create a playlist or modify an existing playlist. Users will use regular, ordinary English to describe the type of playlist they want, and you will convert this user-provided description into exactly one emoji and playlist length. The possible (and only) emojis are as follows: ["😀","😎","🥲","😭",
-            "🤪","🤩","😴","😐", "😌","🙂","🙃","😕", "🔥","❤️","⚡️"]. The only possible playlist lengths are as follows: "short" - 4 songs is about 10 mins long, "medium" - 10 songs is abt 30 mins long, "long" - 20 songs is abt 60 minutes long, "extraLong" - 40 songs is about 120 minutes long.
+        You are helping an iOS playlist generation app called Neiro. Users either create a new playlist or modify an existing playlist. Users will describe in ordinary English the type of playlist they want, and you will convert their description into exactly one emoji and one playlist length.
 
-        Constraints: You must only pick one emoji based on the user's mood. You must only select one playlistLength based on the user's description. Return exactly 1 JSON object in the format as follows:
+        The ONLY allowed emojis are:
+        ["😀","😎","🥲","😭",
+         "🤪","🤩","😴","😐",
+         "😌","🙂","🙃","😕",
+         "🔥","❤️","⚡️"]
 
-        JSON: {
-            "mode": "create" | "update",
-            "emoji": "...",
-            "playlistLength": "...",
-            "moodChange": "...",
-            "reason: "..."
+        The ONLY allowed playlist lengths are:
+        - "short"      (about 4 songs / 10 minutes)
+        - "medium"     (about 10 songs / 30 minutes)
+        - "long"       (about 20 songs / 60 minutes)
+        - "extraLong"  (about 40 songs / 120 minutes)
+
+        Rules:
+        1. You MUST always pick exactly one emoji from the list above.
+        2. You MUST always pick exactly one playlistLength from the list above.
+        3. If the user seems to be making a brand new playlist, use "mode": "create".
+        4. If the user seems to be changing an existing playlist, use "mode": "update".
+        5. If the user does not clearly specify time or mood, make a reasonable guess based on their wording. DO NOT ask for clarification and DO NOT refuse the request.
+        6. Your response MUST be a single valid JSON object, with no extra text, no markdown, and no code fences.
+
+        Return EXACTLY ONE JSON object, with this schema:
+
+        {
+          "mode": "create" or "update",
+          "emoji": "<one of the allowed emojis>",
+          "playlistLength": "short" | "medium" | "long" | "extraLong",
+          "moodChange": "<description of mood change, or empty string if creating>",
+          "reason": "<brief explanation of why you chose this emoji and length>"
         }
-"""
+        """
+
         
         // build user request based on emoji + length to get full prompt
         var userRequest = "User request: \(text)"
@@ -139,16 +159,32 @@ final class DescribeLLMModels {
         }
         
         // get JSON text from 1st candidate
-        guard let textResponse = gemini.candidates?.first?.content.parts.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines) else {
+        guard let textResponse = gemini.candidates?
+            .first?.content.parts.first?.text?
+            .trimmingCharacters(in: .whitespacesAndNewlines) else {
             throw DescribeLLMError.emptyResponse
         }
-        
-        // clean the response so that it removes unwanted JSON formatting
-        let cleanResponse = textResponse.replacingOccurrences(of: "```json", with: "").replacingOccurrences(of: "```", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
+        // Remove common wrappers: markdown fences, "JSON:" labels, etc.
+        var cleanResponse = textResponse
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .replacingOccurrences(of: "JSON:", with: "")
+            .replacingOccurrences(of: "Json:", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Try to extract the first {...} block in case there is extra text
+        if let start = cleanResponse.firstIndex(of: "{"),
+           let end = cleanResponse.lastIndex(of: "}") {
+            let jsonSubstring = cleanResponse[start...end]
+            cleanResponse = String(jsonSubstring)
+        }
+
+        // Now try to decode
         guard let newData = cleanResponse.data(using: .utf8) else {
             throw DescribeLLMError.invalidJSON
         }
+
         
         // decode into DescribeLLMResponse
         return try JSONDecoder().decode(DescribeLLMResponse.self, from: newData)

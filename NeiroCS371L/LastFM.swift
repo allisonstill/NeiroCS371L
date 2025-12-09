@@ -122,6 +122,38 @@ final class LastFMAPI {
         }
 
         let clampedNicheness = max(1, min(10, nicheness))
+        let excludedSet = Set(excludedArtists.map { $0.lowercased() })
+        let preferredArtistSet = Set(preferredArtists.map { $0.lowercased() })
+
+        // If the user wants super high nicheness, delegate to ListenBrainz instead
+        if clampedNicheness > 8 {
+            ListenBrainzAPI.shared.generateSongsFromEmoji(
+                emoji,
+                targetSongCount: songCount
+            ) { result in
+                switch result {
+                case .failure(let error):
+                    completion(.failure(error))
+
+                case .success(let songs):
+                    // Respect excludedArtists even in the LB path
+                    let filtered = songs.filter { song in
+                        guard let artist = song.artist?.lowercased() else { return true }
+                        return !excludedSet.contains(artist)
+                    }
+
+                    if filtered.isEmpty {
+                        completion(.failure(ListenBrainzError.noTracksFound))
+                    } else {
+                        completion(.success(filtered))
+                    }
+                }
+            }
+            return
+        }
+
+        // ===== Normal Last.fm flow below =====
+
         let tags = selectTags(for: emoji, preferredGenres: Array(preferredGenres))
 
         if tags.isEmpty {
@@ -131,9 +163,6 @@ final class LastFMAPI {
 
         // Distribute desired songs across tags as evenly as possible
         let perTagCounts = distribute(total: songCount, into: tags.count)
-
-        let excludedSet = Set(excludedArtists.map { $0.lowercased() })
-        let preferredArtistSet = Set(preferredArtists.map { $0.lowercased() })
 
         let group = DispatchGroup()
         var allSeeds: [LastFMTrackSeed] = []
@@ -194,6 +223,7 @@ final class LastFMAPI {
             )
         }
     }
+
 
     // MARK: - Tag selection
 

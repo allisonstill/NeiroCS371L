@@ -15,7 +15,6 @@ final class CreatePlaylistViewController: UIViewController {
     // adding new playlist button (to gray out)
     private let createButton = UIButton(type: .system)
 
-    // Easily editable emoji set
     var emojis: [String] = ["😀","😎","🥲","😭",
                             "🤪","🤩","😴","😐",
                             "😌","🙂","🙃","😕",
@@ -141,6 +140,8 @@ final class CreatePlaylistViewController: UIViewController {
 
     private func handleEmojiSelection(_ emoji: String) {
         guard emoji != "➕" else {
+            selectedEmoji = nil
+            createButton.isHidden = true
             showAlert(title: "Coming Soon", message: "Not yet implemented")
             return
         }
@@ -199,13 +200,10 @@ final class CreatePlaylistViewController: UIViewController {
     
     private func generatePlaylistFromLastFM(for emoji: String) {
         guard PlaylistGenerator.checkSpotifyConnection(on: self) else { return }
-        
-        // for now, fixed nicheness = 2 (slightly away from page 1, still mostly popular)
-        let nicheness = 2
-        
+                
         PlaylistGenerator.shared.generatePlaylistFromLastFM(
             for: emoji,
-            nicheness: nicheness,
+            nicheness: SessionStore.hipsterRating,
             activityIndicator: activityIndicator,
             on: self
         ) { [weak self] result in
