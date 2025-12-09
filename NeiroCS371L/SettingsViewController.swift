@@ -341,13 +341,6 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
     }
 
     private func buildActions() {
-        let clearHistoryButton = UIButton(type: .system)
-        clearHistoryButton.setTitle("Clear History", for: .normal)
-        clearHistoryButton.backgroundColor = UIColor.systemGray.withAlphaComponent(0.25)
-        clearHistoryButton.setTitleColor(.white, for: .normal)
-        clearHistoryButton.layer.cornerRadius = 14
-        clearHistoryButton.heightAnchor.constraint(equalToConstant: 50).isActive = true
-
         let signOutButton = UIButton(type: .system)
         signOutButton.setTitle("Sign Out", for: .normal)
         signOutButton.titleLabel?.textColor = .gray
@@ -357,7 +350,6 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         signOutButton.heightAnchor.constraint(equalToConstant: 50).isActive = true
         signOutButton.addTarget(self, action: #selector(signOutTapped), for: .touchUpInside)
 
-        content.addArrangedSubview(clearHistoryButton)
         content.addArrangedSubview(signOutButton)
     }
 
