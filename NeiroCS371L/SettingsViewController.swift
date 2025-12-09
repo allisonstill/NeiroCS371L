@@ -24,7 +24,7 @@ enum BackendData {
 
 // One-session memory for this screen
 enum SessionStore {
-    static var appearanceStyle: String = "light" // "dark" | "light"
+    static var appearanceStyle: String = "light" // "dark" | "light" | "system"
     static var playlistMinutes: Int = 10
     static var avatarImage: UIImage?
     static var preferredGenres  = Set<String>()
@@ -50,10 +50,6 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
     private let usernameTitle = UILabel()
     private let usernameValue = UILabel()
     private let spotifyPill = UIButton(type: .system)
-    
-    //private let usernameLabel = UILabel()
-    //private let spotifyStatusLabel = UILabel()
-    //private let connectSpotifyButton = UIButton()
 
     private let appearanceCard = UIView()
     private let appearanceTitle = UILabel()
@@ -68,7 +64,7 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
     private let preferredArtistsRow = PickerRow(title: "Preferred Artists")
     private let unwantedGenresRow   = PickerRow(title: "Unwanted Genres")
     private let unwantedArtistsRow  = PickerRow(title: "Unwanted Artists")
-    
+
     // Hipster rating UI
     private let hipsterCard = UIView()
     private let hipsterTitle = UILabel()
@@ -100,7 +96,7 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         populateUser()
         checkSpotifyConnection()
     }
-    
+
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         checkSpotifyConnection()
@@ -200,7 +196,7 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
             profileRow.bottomAnchor.constraint(equalTo: profileCard.bottomAnchor, constant: -16)
         ])
     }
-    
+
     private func checkSpotifyConnection() {
         if SpotifyUserAuthorization.shared.isConnected {
             var pillCfg = spotifyPill.configuration
@@ -281,55 +277,55 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
 
         refreshPickerSubtitles()
     }
-    
+
     private func buildHipsterRating() {
         stylizeCard(hipsterCard)
         content.addArrangedSubview(hipsterCard)
-        
+
         hipsterTitle.text = "Hipster Rating"
         hipsterTitle.font = UIFont.boldSystemFont(ofSize: 22)
         hipsterTitle.textColor = .label
-        
+
         let symbolConfig = UIImage.SymbolConfiguration(pointSize: 16, weight: .regular)
         hipsterInfoButton.setImage(UIImage(systemName: "info.circle", withConfiguration: symbolConfig), for: .normal)
         hipsterInfoButton.tintColor = .secondaryLabel
         hipsterInfoButton.addTarget(self, action: #selector(hipsterInfoTapped), for: .touchUpInside)
         hipsterInfoButton.setContentHuggingPriority(.required, for: .horizontal)
         hipsterInfoButton.setContentCompressionResistancePriority(.required, for: .horizontal)
-        
+
         let headerStack = UIStackView(arrangedSubviews: [hipsterTitle, hipsterInfoButton])
         headerStack.axis = .horizontal
         headerStack.alignment = .center
         headerStack.distribution = .fill
         headerStack.spacing = 8
-        
+
         hipsterTitle.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        
+
         hipsterSlider.minimumValue = 1
         hipsterSlider.maximumValue = 10
         hipsterSlider.isContinuous = true
         hipsterSlider.addTarget(self, action: #selector(hipsterRatingChanged(_:)), for: .valueChanged)
-        
+
         hipsterLeftLabel.text = "Most Mainstream"
         hipsterLeftLabel.font = UIFont.systemFont(ofSize: 12)
         hipsterLeftLabel.textColor = .secondaryLabel
-        
+
         hipsterRightLabel.text = "Most Niche"
         hipsterRightLabel.font = UIFont.systemFont(ofSize: 12)
         hipsterRightLabel.textColor = .secondaryLabel
         hipsterRightLabel.textAlignment = .right
-        
+
         hipsterLabelsRow.axis = .horizontal
         hipsterLabelsRow.alignment = .center
         hipsterLabelsRow.distribution = .equalSpacing
         hipsterLabelsRow.spacing = 8
         hipsterLabelsRow.addArrangedSubview(hipsterLeftLabel)
         hipsterLabelsRow.addArrangedSubview(hipsterRightLabel)
-        
+
         let v = UIStackView(arrangedSubviews: [headerStack, hipsterSlider, hipsterLabelsRow])
         v.axis = .vertical
         v.spacing = 12
-        
+
         hipsterCard.addSubview(v)
         v.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
@@ -364,12 +360,14 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
 
     // MARK: - Session I/O
     private func loadFromSession() {
+        // Appearance from ThemeManager.current (will be overridden by Firestore once it loads)
         switch ThemeManager.current {
-            case .light:  appearanceSeg.selectedSegmentIndex = 1
-            case .dark:   appearanceSeg.selectedSegmentIndex = 0
-            case .system: appearanceSeg.selectedSegmentIndex = 2
+        case .light:  appearanceSeg.selectedSegmentIndex = 1
+        case .dark:   appearanceSeg.selectedSegmentIndex = 0
+        case .system: appearanceSeg.selectedSegmentIndex = 2
         }
 
+        // Playlist length from SessionStore (will also be overridden by Firestore if present)
         let idx: [Int:Int] = [10:0, 30:1, 60:2, 120:3]
         lengthSeg.selectedSegmentIndex = idx[SessionStore.playlistMinutes] ?? 0
 
@@ -377,13 +375,15 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         preferredArtistsList = SessionStore.preferredArtists
         unwantedGenresList   = SessionStore.unwantedGenres
         unwantedArtistsList  = SessionStore.unwantedArtists
-        
+
         hipsterSlider.value = Float(SessionStore.hipsterRating)
 
         if let img = SessionStore.avatarImage {
             avatar.image = img
             avatar.contentMode = .scaleAspectFill
         }
+
+        refreshPickerSubtitles()
     }
 
     private func saveToSession() {
@@ -392,6 +392,25 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         SessionStore.unwantedGenres   = unwantedGenresList
         SessionStore.unwantedArtists  = unwantedArtistsList
         // hipsterRating stored live in hipsterRatingChanged(_:)
+        savePreferencesToFirestore()
+    }
+
+    /// Persist current preference settings to Firestore under the current user document.
+    private func savePreferencesToFirestore() {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+        let db = Firestore.firestore()
+
+        let data: [String: Any] = [
+            "appearanceStyle": SessionStore.appearanceStyle,
+            "preferredPlaylistMinutes": SessionStore.playlistMinutes,
+            "hipsterRating": SessionStore.hipsterRating,
+            "preferredGenres": Array(preferredGenresList),
+            "preferredArtists": Array(preferredArtistsList),
+            "excludedGenres": Array(unwantedGenresList),
+            "excludedArtists": Array(unwantedArtistsList)
+        ]
+
+        db.collection("users").document(userID).setData(data, merge: true)
     }
 
     private func summaryText(for set: Set<String>) -> String {
@@ -410,36 +429,35 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
 
     // MARK: - Actions
     @objc private func appearanceChanged() {
-        let choice: AppAppearance = {
-                switch appearanceSeg.selectedSegmentIndex {
-                case 0: return .dark
-                case 1:
-                    // let style = "light"
-                    // SessionStore.appearanceStyle = style
-                    // applyAppearance(style)
-                    return .light
-                default: return .system
-                }
-            }()
+        // Map segment -> AppAppearance + string we store
+        let (choice, styleString): (AppAppearance, String) = {
+            switch appearanceSeg.selectedSegmentIndex {
+            case 0: return (.dark, "dark")
+            case 1: return (.light, "light")
+            default: return (.system, "system")
+            }
+        }()
+
+        SessionStore.appearanceStyle = styleString
         ThemeManager.set(choice)
-        // let style = (appearanceSeg.selectedSegmentIndex == 1) ? "dark" : "light"
-        // SessionStore.appearanceStyle = style
-        // applyAppearance(style)
+        savePreferencesToFirestore()
     }
 
     @objc private func lengthChanged() {
         let minutes = [10, 30, 60, 120][lengthSeg.selectedSegmentIndex]
         SessionStore.playlistMinutes = minutes
+        savePreferencesToFirestore()
     }
-    
+
     @objc private func hipsterRatingChanged(_ sender: UISlider) {
         // Snap to integer values 1–10
         var value = Int(round(sender.value))
         value = max(1, min(10, value))
         sender.value = Float(value)
         SessionStore.hipsterRating = value
+        savePreferencesToFirestore()
     }
-    
+
     @objc private func hipsterInfoTapped() {
         showAlert(
             title: "Hipster Rating",
@@ -466,48 +484,11 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
     }
 
     @objc private func changePhotoTapped() {
-//        let picker = UIImagePickerController()
-//        picker.sourceType = .photoLibrary
-//        picker.delegate = self
-//        present(picker, animated: true)
-        
         let profilePictureVC = ProfilePictureViewController(isNewUser: false)
         profilePictureVC.modalPresentationStyle = .fullScreen
         present(profilePictureVC, animated: true)
-        /*
-        let sheet = UIAlertController(title: "Profile Photo", message: "Choose a source", preferredStyle: .actionSheet)
-
-        // Camera
-        let camera = UIAlertAction(title: "Take Photo", style: .default) { [weak self] _ in
-            guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
-                self?.showAlert(title: "Camera Unavailable", message: "This device has no camera.")
-                return
-            }
-            let picker = UIImagePickerController()
-            picker.sourceType = .camera
-            picker.cameraCaptureMode = .photo
-            picker.allowsEditing = true
-            picker.delegate = self
-            self?.present(picker, animated: true)
-        }
-        sheet.addAction(camera)
-
-        // Photo Library
-        let library = UIAlertAction(title: "Choose from Library", style: .default) { [weak self] _ in
-            let picker = UIImagePickerController()
-            picker.sourceType = .photoLibrary
-            picker.allowsEditing = true
-            picker.delegate = self
-            self?.present(picker, animated: true)
-        }
-        sheet.addAction(library)
-
-        // Cancel
-        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        
-        present(sheet, animated: true)*/
     }
-    
+
     @objc private func connectSpotifyTapped() {
         if SpotifyUserAuthorization.shared.isConnected {
             let alert = UIAlertController(
@@ -515,14 +496,14 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
                 message: "You will no longer be able to export playlists to Spotify",
                 preferredStyle: .alert
             )
-            
+
             alert.addAction(UIAlertAction(title: "Disconnect", style: .destructive) { _ in
                 SpotifyUserAuthorization.shared.disconnect()
                 self.checkSpotifyConnection()
             })
-            
+
             alert.addAction(UIAlertAction(title: "Cancel", style:.cancel))
-            
+
             present(alert, animated: true)
         } else {
             SpotifyUserAuthorization.shared.startLogin(presentingVC: self, forSignup: false) { [weak self] safari in
@@ -609,16 +590,20 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
         usernameValue.text = display
         loadProfilePicture()
     }
-    
+
+    /// Load profile picture AND preference settings from Firestore.
     private func loadProfilePicture() {
         guard let userID = Auth.auth().currentUser?.uid else { return }
         let db = Firestore.firestore()
-        
+
         db.collection("users").document(userID).getDocument { [weak self] snapshot, error in
-            
-            guard let self = self, let data = snapshot?.data() else {return}
-            
-            // check if user has used a custom image
+            guard let self = self else { return }
+            let data = snapshot?.data() ?? [:]
+
+            // Load / backfill preferences (including appearance + playlist length)
+            self.loadAndDefaultPreferences(from: data, userID: userID)
+
+            // Profile photo logic
             if let imageData = data["profileImageBase64"] as? String,
                let data = Data(base64Encoded: imageData),
                let image = UIImage(data: data) {
@@ -626,11 +611,8 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
                     self.avatar.image = image
                     self.avatar.contentMode = .scaleAspectFill
                 }
-            }
-            
-            // if user has an avatar name set, use the avatar from Assets
-            else if let avatarName = data["avatarName"] as? String,
-                    let avatarImage = UIImage(named: avatarName) {
+            } else if let avatarName = data["avatarName"] as? String,
+                      let avatarImage = UIImage(named: avatarName) {
                 DispatchQueue.main.async {
                     self.avatar.image = avatarImage
                     self.avatar.contentMode = .scaleAspectFill
@@ -638,7 +620,109 @@ final class SettingsViewController: UIViewController, UIImagePickerControllerDel
             }
         }
     }
-    
+
+    /// Read preference fields from Firestore, set defaults if missing, and update UI/SessionStore.
+    private func loadAndDefaultPreferences(from data: [String: Any], userID: String) {
+        let db = Firestore.firestore()
+        var fieldsToSet: [String: Any] = [:]
+
+        // Default appearance string from current ThemeManager
+        let defaultAppearance: String = {
+            switch ThemeManager.current {
+            case .dark: return "dark"
+            case .light: return "light"
+            case .system: return "system"
+            }
+        }()
+
+        // Appearance
+        let storedAppearance = data["appearanceStyle"] as? String ?? defaultAppearance
+        if data["appearanceStyle"] == nil {
+            fieldsToSet["appearanceStyle"] = storedAppearance
+        }
+
+        // Preferred playlist length in minutes
+        let storedMinutes = data["preferredPlaylistMinutes"] as? Int ?? 10
+        if data["preferredPlaylistMinutes"] == nil {
+            fieldsToSet["preferredPlaylistMinutes"] = storedMinutes
+        }
+
+        // Hipster rating
+        let storedHipster = data["hipsterRating"] as? Int ?? 2
+        if data["hipsterRating"] == nil {
+            fieldsToSet["hipsterRating"] = storedHipster
+        }
+
+        // Arrays for preferences (default empty)
+        let prefGenresArr = data["preferredGenres"] as? [String] ?? []
+        let prefArtistsArr = data["preferredArtists"] as? [String] ?? []
+        let exclGenresArr = data["excludedGenres"] as? [String] ?? []
+        let exclArtistsArr = data["excludedArtists"] as? [String] ?? []
+
+        if data["preferredGenres"] == nil { fieldsToSet["preferredGenres"] = prefGenresArr }
+        if data["preferredArtists"] == nil { fieldsToSet["preferredArtists"] = prefArtistsArr }
+        if data["excludedGenres"] == nil { fieldsToSet["excludedGenres"] = exclGenresArr }
+        if data["excludedArtists"] == nil { fieldsToSet["excludedArtists"] = exclArtistsArr }
+
+        // If any fields were missing, write defaults back to Firestore
+        if !fieldsToSet.isEmpty {
+            db.collection("users").document(userID).setData(fieldsToSet, merge: true)
+        }
+
+        // Update SessionStore + local sets + UI
+        let prefGenresSet = Set(prefGenresArr)
+        let prefArtistsSet = Set(prefArtistsArr)
+        let exclGenresSet = Set(exclGenresArr)
+        let exclArtistsSet = Set(exclArtistsArr)
+
+        DispatchQueue.main.async {
+            // Local sets
+            self.preferredGenresList  = prefGenresSet
+            self.preferredArtistsList = prefArtistsSet
+            self.unwantedGenresList   = exclGenresSet
+            self.unwantedArtistsList  = exclArtistsSet
+
+            // Session
+            SessionStore.preferredGenres  = prefGenresSet
+            SessionStore.preferredArtists = prefArtistsSet
+            SessionStore.unwantedGenres   = exclGenresSet
+            SessionStore.unwantedArtists  = exclArtistsSet
+            SessionStore.hipsterRating    = storedHipster
+            SessionStore.playlistMinutes  = storedMinutes
+            SessionStore.appearanceStyle  = storedAppearance
+
+            // Update hipster slider
+            self.hipsterSlider.value = Float(storedHipster)
+
+            // Update appearance segmented control
+            let appearanceIndex: Int = {
+                switch storedAppearance {
+                case "dark": return 0
+                case "light": return 1
+                default: return 2
+                }
+            }()
+            self.appearanceSeg.selectedSegmentIndex = appearanceIndex
+
+            // Update length segmented control
+            let idxMap: [Int:Int] = [10:0, 30:1, 60:2, 120:3]
+            self.lengthSeg.selectedSegmentIndex = idxMap[storedMinutes] ?? 0
+
+            // Apply appearance globally
+            let appAppearance: AppAppearance = {
+                switch storedAppearance {
+                case "dark": return .dark
+                case "light": return .light
+                default: return .system
+                }
+            }()
+            ThemeManager.set(appAppearance)
+
+            // Picker subtitles
+            self.refreshPickerSubtitles()
+        }
+    }
+
     //helper function to show alerts
     private func showAlert(title: String, message: String) {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)

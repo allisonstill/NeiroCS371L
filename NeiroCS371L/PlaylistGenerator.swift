@@ -163,7 +163,7 @@ final class PlaylistGenerator {
         
     func generatePlaylistFromLastFM(
         for emoji: String,
-        nicheness: Int = 2,
+        nicheness: Int = SessionStore.hipsterRating,
         activityIndicator: UIActivityIndicatorView?,
         on vc: UIViewController,
         completion: @escaping (Result<Playlist, Error>) -> Void
